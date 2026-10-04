@@ -3,6 +3,7 @@ import { guide } from '../../api/lifecastApi';
 import { getPlannerAssessment, plannerContext } from '../lib/backend';
 import type { Plan } from '../lib/model';
 import { greeting } from './guide';
+import { checkGuideView, guideContextWithView, guidePlanFingerprint, type GuideViewContext } from '../lib/reviewContext';
 
 export interface GuideMessage { id: number; from: 'lincoln' | 'user'; text: string; introduction?: boolean }
 interface Snapshot { messages: GuideMessage[]; busy: boolean; error: string; lastQuestion: string }
@@ -56,7 +57,7 @@ export function clearPlannerGuides() {
 }
 
 /** Plan-specific Bedrock history, retained only for the current workspace. */
-export async function askPlannerGuide(plan: Plan | null | undefined, question: string, options: { signal?: AbortSignal } = {}): Promise<string> {
+export async function askPlannerGuide(plan: Plan | null | undefined, question: string, options: { signal?: AbortSignal; viewContext?: GuideViewContext } = {}): Promise<string> {
   const text = question.trim();
   if (!text) throw new Error('Enter a question for Lincoln.');
   if (text.length > 4000) throw new Error('Keep your question under 4,000 characters.');
@@ -71,12 +72,15 @@ export async function askPlannerGuide(plan: Plan | null | undefined, question: s
   const pending = [...prior, { id: conversation.nextId++, from: 'user' as const, text }];
   update(conversation, { messages: pending, busy: true, error: '', lastQuestion: text });
   try {
+    checkGuideView(plan, options.viewContext);
     const assessment = plan ? await getPlannerAssessment(plan, { signal }) : null;
     if (signal.aborted) throw new DOMException('Cancelled', 'AbortError');
+    checkGuideView(plan, options.viewContext, assessment?.assessment);
+    const context = guideContextWithView(plan ? plannerContext(plan, assessment!) : 'The user is completing the initial LifeCast questions. No household details have been confirmed and no calculator assessment is available. Give general educational guidance or ask a clarifying question. Do not invent financial details, calculator results, quotes, or premiums.', options.viewContext);
     const result = await guide({ question: text, history,
       profile: assessment?.household || null, assessment: assessment?.assessment || null,
       calculatorInput: assessment?.calculatorInput || null,
-      context: plan ? plannerContext(plan, assessment!) : 'The user is completing the initial LifeCast questions. No household details have been confirmed and no calculator assessment is available. Give general educational guidance or ask a clarifying question. Do not invent financial details, calculator results, quotes, or premiums.', signal,
+      context, signal,
     });
     if (signal.aborted || generation !== conversation.generation) throw new DOMException('Cancelled', 'AbortError');
     const answer = result.answer || result.reply;
@@ -90,9 +94,9 @@ export async function askPlannerGuide(plan: Plan | null | undefined, question: s
   } finally { if (generation === conversation.generation) conversation.controller = null; }
 }
 
-export function usePlannerGuide(plan?: Plan | null) {
+export function usePlannerGuide(plan?: Plan | null, viewContext?: GuideViewContext) {
   const conversation = conversationFor(plan);
-  const fingerprint = plan ? JSON.stringify([plan.financialInputs, plan.lifeEvents, plan.timeline]) : '';
+  const fingerprint = plan ? JSON.stringify([guidePlanFingerprint(plan), viewContext ?? null]) : '';
   const subscribe = useCallback((listener: () => void) => {
     conversation.listeners.add(listener);
     return () => {
@@ -107,7 +111,7 @@ export function usePlannerGuide(plan?: Plan | null) {
     if (conversation.planFingerprint !== undefined && conversation.planFingerprint !== fingerprint) cancelPlannerGuide(plan);
     conversation.planFingerprint = fingerprint;
   }, [conversation, fingerprint, plan]);
-  const ask = useCallback((question: string, options: { signal?: AbortSignal } = {}) => askPlannerGuide(plan, question, options), [plan]);
+  const ask = useCallback((question: string, options: { signal?: AbortSignal } = {}) => askPlannerGuide(plan, question, { ...options, viewContext }), [plan, viewContext]);
   const cancel = useCallback(() => cancelPlannerGuide(plan), [plan]);
   return { ...snapshot, ask, cancel };
 }

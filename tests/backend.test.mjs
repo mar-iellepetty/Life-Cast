@@ -107,6 +107,34 @@ test("grounded Bedrock explanations cannot silently invoke calculator tools and 
   } finally { BedrockRuntimeClient.prototype.send = previous; }
 });
 
+test("review explanations separate current gaps, hypothetical purchases and constructed benchmarks", async () => {
+  const previous = BedrockRuntimeClient.prototype.send; let request;
+  BedrockRuntimeClient.prototype.send = async function(command) {
+    request = command.input;
+    return { output: { message: { role: "assistant", content: [{ text: "An explanation grounded in the supplied scenarios." }] } }, stopReason: "end_turn" };
+  };
+  const review = { currentHousehold: { coverageGap: 1493000 }, comparison: { standing: [
+    { key: "avg", gap: 1086000, pct: 16 }, { key: "plan", gap: 0, pct: 100 },
+  ] }, suggestion: { years: 20, amount: 1500000 } };
+  try {
+    await chat([{ role: "user", text: "How do I compare to the benchmark?" }], household, JSON.stringify(review), { assessment: { coverageGap: 1493000 } });
+    const instructions = request.system.find(block => block.text.startsWith("# Authoritative assessment")).text;
+    assert.match(instructions, /"coverageGap":1493000/);
+    assert.match(instructions, /CURRENT household shortfall before buying any suggested policy/);
+    assert.match(instructions, /state this current gap first/);
+    assert.match(instructions, /explicitly say "if you add the suggested policy"/);
+    assert.match(instructions, /only describe the current gap as zero when assessment\.coverageGap itself is zero/);
+    assert.match(instructions, /"constructed illustrative benchmark"/);
+    assert.match(instructions, /not an observed household, actual peers/);
+    assert.match(instructions, /Do not claim it measures how similar families are insured/);
+    assert.match(instructions, /term duration is a heuristic/);
+    assert.match(instructions, /do not recompute them or guarantee that the duration covers all obligations/);
+    assert.match(instructions, /unavailable.*do not recover figures from earlier conversation history/);
+    assert.ok(request.system.some(block => block.text.includes(JSON.stringify(review))), 'the distinct scenario figures remain intact as application data');
+    assert.equal(request.toolConfig, undefined);
+  } finally { BedrockRuntimeClient.prototype.send = previous; }
+});
+
 test("calculator tool preserves known facts/options and rejects excessive loop bounds", async () => {
   const previous = globalThis.fetch; let request;
   globalThis.fetch = async (url, options) => { request = JSON.parse(options.body); return Response.json({ immediateNeeds: "$373,000", longtermNeeds: "$1,220,510", totalNeeds: "$1,593,510", totalResources: "$919,892", lifeInsuranceNeeded: "$674,000" }); };

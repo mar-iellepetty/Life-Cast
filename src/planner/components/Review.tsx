@@ -7,6 +7,9 @@ import { getPlannerAssessment, type PlannerAssessment } from '../lib/backend';
 import { AssessmentSummary } from './AssessmentSummary';
 import { nationalMedianInputs, OWNERSHIP, scfGroupFor, SCF_SOURCE, TYPICAL_POLICY } from '../data/scf2022';
 import { suggestedAdditionalCoverage } from '../lib/coverageSuggestion';
+import { BENCHMARK_NOTICE, reviewGuideContext } from '../lib/reviewContext';
+import { GuideChat } from './GuideChat';
+import { REVIEW_SUGGESTIONS } from '../agent/guide';
 import './report.css';
 
 interface Props {
@@ -87,9 +90,18 @@ export function Review({ plan, savedAt, onAdjust, onSave, onCompare, onAddPlan }
   ];
 
   const createTemplate = () => onAddPlan(createPlan(`National benchmark (${group.label})`, { ...national }, [], plan.timeline.termYears, 'scf-2022'));
+  const reviewAssessment = !loading && !error ? assessment : null;
+  const viewContext = reviewGuideContext(plan, reviewAssessment, {
+    suggestion: s,
+    comparisonStatus: ready ? 'ready' : avg.error && avg.key === nationalKey ? 'unavailable' : 'loading',
+    ageGroup: group.label, standing, finances: rows,
+    sources: [SCF_SOURCE, { name: TYPICAL_POLICY.source, url: TYPICAL_POLICY.url }, { name: OWNERSHIP.source, url: OWNERSHIP.url }],
+  });
 
   return (
     <div className="review fade">
+      <div className="page-guide"><GuideChat plan={plan} suggestions={REVIEW_SUGGESTIONS} placeholder="Ask Lincoln about your coverage options" viewContext={viewContext}
+        unavailableReason={reviewAssessment ? undefined : loading ? 'Lincoln can explain this review once your current CalcXML assessment is ready.' : 'Your current assessment is unavailable. Retry the assessment below before asking Lincoln about this review.'} /></div>
       <header className="review-head">
         <div>
           <p className="eyebrow">Review &amp; Plan · {plan.name}</p>
@@ -108,7 +120,7 @@ export function Review({ plan, savedAt, onAdjust, onSave, onCompare, onAddPlan }
       <section className="panel explainer" aria-labelledby="explainer-title">
         <p className="section-kicker">Before we suggest anything</p>
         <h2 id="explainer-title" className="section-heading">Term and permanent life insurance, in plain words</h2>
-        <p className="explainer-lede">Both pay your family a lump sum if you die while the policy is active. The difference is <strong>how long the coverage lasts</strong> and <strong>what you pay for it</strong>.</p>
+        <p className="explainer-lede">Both can pay a death benefit to your beneficiaries while the policy is active, subject to its terms. The difference is <strong>how long the coverage lasts</strong> and <strong>what you pay for it</strong>.</p>
         <div className="explainer-grid">
           <div className="explainer-card">
             <h3>Term life insurance</h3>
@@ -122,12 +134,12 @@ export function Review({ plan, savedAt, onAdjust, onSave, onCompare, onAddPlan }
           </div>
           <div className="explainer-card">
             <h3>Permanent life insurance</h3>
-            <p className="explainer-analogy">Like owning: protection for your whole life.</p>
+            <p className="explainer-analogy">Designed for lifelong protection, with ongoing policy requirements.</p>
             <ul>
-              <li>Lasts for life as long as you keep paying premiums.</li>
-              <li>Your family receives the payout whenever you die.</li>
+              <li>Can last for life if the policy's premium, funding and other requirements are met.</li>
+              <li>Benefits and guarantees vary by policy; a policy that lapses no longer provides coverage.</li>
               <li>Costs considerably more for the same amount.</li>
-              <li>Many policies build cash value you can borrow against.</li>
+              <li>Many policies build cash value. Loans or withdrawals can reduce policy value and the death benefit, and increase the risk of lapse.</li>
             </ul>
           </div>
         </div>
@@ -177,7 +189,7 @@ export function Review({ plan, savedAt, onAdjust, onSave, onCompare, onAddPlan }
           <h3 className="pc-title">{hasNeed && s.lasting ? 'Worth a close look for your plan' : 'For needs that never end'}</h3>
           <p className="pc-label pro">Pros</p>
           <ul>
-            <li>Lasts for life as long as premiums are paid, so it never expires before it is needed.</li>
+            <li>Designed to provide lifelong coverage when its premium, funding and other policy requirements are met.</li>
             <li>Many policies build cash value you can borrow against.</li>
             <li>Useful for lifelong goals such as final expenses ({money(i.finalExpenses)} in your plan) or an inheritance.</li>
           </ul>
@@ -186,8 +198,10 @@ export function Review({ plan, savedAt, onAdjust, onSave, onCompare, onAddPlan }
             <li>Typically costs several times more than term for the same amount.</li>
             <li>{!hasNeed ? 'Additional premiums may be unnecessary when existing resources cover your modeled needs.' : s.lasting ? 'Higher premiums can make it harder to afford the full amount you need.' : `Much of your need ends by about age ${s.untilAge}, so you would keep paying for coverage beyond it.`}</li>
             <li>Cash value, fees and guarantees vary by product and take time to understand.</li>
+            <li>Loans or withdrawals can reduce policy value and the death benefit, and increase the risk that coverage lapses.</li>
           </ul>
           <a className="source-link" href="https://www.lincolnfinancial.com/public/individuals/products/lifeinsurance/permanentlife" target="_blank" rel="noreferrer">Lincoln Financial: permanent life overview ↗</a>
+          <p className="muted small">Learn more: <a href="https://content.naic.org/article/consumer-insight-what-type-life-insurance-right-you" target="_blank" rel="noreferrer">NAIC policy features and guarantees</a>; <a href="https://www.investor.gov/introduction-investing/investing-basics/investment-products/variable-life" target="_blank" rel="noreferrer">SEC guidance on variable-life loans and lapse risks</a>.</p>
         </article>
       </section>
 
@@ -255,7 +269,7 @@ export function Review({ plan, savedAt, onAdjust, onSave, onCompare, onAddPlan }
           })}
         </div>
         <p className="insight-note">
-          This illustrative template keeps your input age and family, combines separate age-group medians for income and financial assets with debt medians among debt holders, and assumes the average new individual policy. These combined figures do not describe an observed typical household or actual peer coverage. Sources:{' '}
+          {BENCHMARK_NOTICE} Sources:{' '}
           <a href={SCF_SOURCE.url} target="_blank" rel="noreferrer">{SCF_SOURCE.name}</a> (2022 dollars);{' '}
           <a href={TYPICAL_POLICY.url} target="_blank" rel="noreferrer">ACLI Life Insurers Fact Book 2025</a> (average policy {money(TYPICAL_POLICY.amount)});{' '}
           <a href={OWNERSHIP.url} target="_blank" rel="noreferrer">{OWNERSHIP.source}</a>. Both scenarios use CalcXML and the same calculator rate assumptions. The benchmark excludes your life events.

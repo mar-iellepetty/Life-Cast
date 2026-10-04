@@ -6,7 +6,7 @@ type Assessment = PlannerResult['assessment'];
 type Household = PlannerResult['household'];
 type Request = PlannerResult['calculatorInput'];
 
-const r1000 = (n: number) => Math.round(n / 1000) * 1000;
+const providerMoney = (n: number) => (n < 0 ? '-$' : '$') + Math.abs(n).toLocaleString('en-US', { maximumFractionDigits: 2 });
 const list = (items: string[]) => (items.length <= 1 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`);
 
 interface Step {
@@ -20,7 +20,7 @@ interface Step {
 function steps(a: Assessment, h: Household | null, req: Request | null): Step[] {
   const out: Step[] = [];
   for (const row of a.needs) {
-    const amount = r1000(row.amount);
+    const amount = row.amount;
     if (row.id === 'immediateNeeds') {
       const parts = [
         h && h.debts.mortgage > 0 && `the house (${money(h.debts.mortgage)})`,
@@ -32,7 +32,7 @@ function steps(a: Assessment, h: Household | null, req: Request | null): Step[] 
     } else if (row.id === 'income') {
       const years = req?.term ?? 0;
       const yearly = req?.desiredIncome ?? 0;
-      const college = req && req.collegeNeeds > 0 ? `, plus ${money(req.collegeNeeds)} saved for college` : '';
+      const college = req && req.collegeNeeds > 0 ? `, plus ${money(req.collegeNeeds)} of planned college funding` : '';
       out.push({
         sign: '+',
         label: 'Money to replace your paycheck',
@@ -44,7 +44,7 @@ function steps(a: Assessment, h: Household | null, req: Request | null): Step[] 
     }
   }
   for (const row of a.resources) {
-    const amount = r1000(row.amount);
+    const amount = row.amount;
     const parts = [
       h && h.resources.savings > 0 && `savings (${money(h.resources.savings)})`,
       h && h.resources.existingCoverage > 0 && `life insurance you already have (${money(h.resources.existingCoverage)})`,
@@ -63,7 +63,14 @@ export function SimpleMath({ result, assumptions }: { result: { assessment: Asse
     soFar += s.sign === '+' ? s.amount : -s.amount;
     return { ...s, soFar };
   });
-  const total = Math.max(0, soFar);
+  // The provider's returned gap is authoritative. Summing display-rounded lines
+  // can disagree with it, so retain each line and disclose any reconciliation.
+  const total = result.assessment.coverageGap;
+  const difference = total - soFar;
+  const differs = Math.abs(difference) >= 0.005;
+  const reconciliation = !differs ? null : total === 0 && soFar < 0
+    ? `The line items leave a surplus of ${providerMoney(-soFar)}. CalcXML reports $0 of additional coverage need; a surplus is not a negative insurance need.`
+    : `The line-item subtotal is ${providerMoney(soFar)}. CalcXML returned a coverage gap of ${providerMoney(total)}, a difference of ${providerMoney(Math.abs(difference))}. The final estimate below keeps the coverage gap returned by CalcXML.`;
 
   return (
     <div className="kid-math fade">
@@ -74,21 +81,22 @@ export function SimpleMath({ result, assumptions }: { result: { assessment: Asse
           <div className="kid-body">
             <div className="kid-line">
               <strong>{s.label}</strong>
-              <span className="kid-amount">{s.sign === '−' ? '−' : '+'}{money(s.amount)}</span>
+              <span className="kid-amount">{s.sign === '−' ? '−' : '+'}{providerMoney(s.amount)}</span>
             </div>
             <p className="kid-why">{s.why}</p>
-            {index > 0 && <p className="kid-sofar">So far: {money(s.soFar)}</p>}
+            {index > 0 && <p className="kid-sofar">So far: {providerMoney(s.soFar)}</p>}
           </div>
         </div>
       ))}
+      {reconciliation && <p className="kid-why" role="note">{reconciliation}</p>}
       <div className="kid-total">
-        <span className="kid-sign eq" aria-hidden="true">=</span>
+        <span className="kid-sign eq" aria-hidden="true">{differs ? '→' : '='}</span>
         <div className="kid-body">
-          <strong>What your family still needs</strong>
-          <p className="kid-why">{total > 0 ? 'This is how much life insurance would fill the gap.' : 'What you already have covers everything above.'}</p>
+          <strong>Additional coverage need · CalcXML</strong>
+          <p className="kid-why">{total > 0 ? "CalcXML's returned estimate of additional life insurance needed." : 'CalcXML reports no additional coverage gap for these inputs.'}</p>
         </div>
         <span className="kid-circled">
-          {money(total)}
+          {providerMoney(total)}
           <svg viewBox="0 0 140 56" preserveAspectRatio="none" aria-hidden="true">
             <ellipse cx="70" cy="28" rx="66" ry="24" pathLength={1} />
           </svg>
@@ -97,7 +105,7 @@ export function SimpleMath({ result, assumptions }: { result: { assessment: Asse
       <button className="btn link small" onClick={() => setFine(!fine)} aria-expanded={fine}>{fine ? 'Hide the fine print' : 'Show the fine print'}</button>
       {fine && (
         <div className="kid-fine">
-          <p>Numbers come from the CalcXML calculator and are rounded to the nearest $1,000. CalcXML also counts future interest and inflation. The chart beside this panel is a separate illustration.</p>
+          <p>Line-item amounts and the coverage gap are returned by CalcXML. The gap is kept as returned, even if it differs from the line-item subtotal. CalcXML also counts future interest and inflation. The chart beside this panel is a separate illustration.</p>
           {assumptions.map((note, i) => <p key={i}>{note}</p>)}
         </div>
       )}

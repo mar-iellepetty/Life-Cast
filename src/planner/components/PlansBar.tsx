@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import { EXAMPLES, ExampleScenario } from '../data/templates';
 import type { Plan } from '../lib/model';
 
@@ -18,6 +18,7 @@ interface Props {
 export function PlansBar(props: Props) {
   const { plans, activeId, onSelect, onRename, onDelete } = props;
   const [editing, setEditing] = useState<string | null>(null);
+  const [nameAtLimit, setNameAtLimit] = useState(false);
   const [menu, setMenu] = useState(false);
 
   return (
@@ -29,22 +30,24 @@ export function PlansBar(props: Props) {
             const active = p.id === activeId;
             if (editing === p.id) {
               return (
-                <input
-                  key={p.id}
+                <Fragment key={p.id}><input
                   className="plan-tab-input"
                   autoFocus
                   defaultValue={p.name}
                   aria-label="Plan name"
-                  onFocus={(e) => e.target.select()}
+                  maxLength={100}
+                  aria-description="Plan names can contain up to 100 characters."
+                  onFocus={(e) => { e.target.select(); setNameAtLimit(e.target.value.length >= 100); }}
+                  onChange={(e) => { if (e.target.value.length > 100) e.target.value = e.target.value.slice(0, 100); setNameAtLimit(e.target.value.length >= 100); }}
                   onBlur={(e) => {
-                    if (e.target.value.trim()) onRename(p.id, e.target.value.trim());
+                    if (e.target.value.trim()) onRename(p.id, e.target.value.trim().slice(0, 100));
                     setEditing(null);
                   }}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') e.currentTarget.blur();
                     if (e.key === 'Escape') setEditing(null);
                   }}
-                />
+                />{nameAtLimit && <span className="muted small" role="status">Plan names can contain up to 100 characters.</span>}</Fragment>
               );
             }
             return (
@@ -88,8 +91,9 @@ export function PlansBar(props: Props) {
   );
 }
 
-function AddNewMenu({ onNewPlan, onDuplicate, onCustomEvent, onExample, onClose }: Props & { onClose: () => void }) {
+function AddNewMenu({ plans, onNewPlan, onDuplicate, onCustomEvent, onExample, onClose }: Props & { onClose: () => void }) {
   const ref = useRef<HTMLDivElement>(null);
+  const atPlanLimit = plans.length >= 30;
   useEffect(() => {
     const onDown = (e: MouseEvent) => {
       if (!ref.current?.parentElement?.contains(e.target as Node)) onClose();
@@ -112,11 +116,12 @@ function AddNewMenu({ onNewPlan, onDuplicate, onCustomEvent, onExample, onClose 
     <div className="addnew" ref={ref} role="menu">
       <div className="addnew-col">
         <p className="addnew-title">Create your own</p>
-        <button role="menuitem" onClick={act(onNewPlan)}>
+        {atPlanLimit && <p className="muted small" role="status">You can keep up to 30 plans. Delete one before adding another.</p>}
+        <button role="menuitem" disabled={atPlanLimit} onClick={act(onNewPlan)}>
           <strong>New Plan</strong>
           <span>Start from your questionnaire answers</span>
         </button>
-        <button role="menuitem" onClick={act(onDuplicate)}>
+        <button role="menuitem" disabled={atPlanLimit} onClick={act(onDuplicate)}>
           <strong>Custom Scenario</strong>
           <span>Copy the current plan and adjust it</span>
         </button>

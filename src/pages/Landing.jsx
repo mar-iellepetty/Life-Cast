@@ -1,6 +1,4 @@
-import { useState } from 'react';
 import LincolnSequence from '@/components/lifecast/LincolnSequence';
-import AvatarDialog from '@/components/lifecast/AvatarDialog';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
@@ -128,7 +126,6 @@ const SECTIONS = [
 ];
 
 export default function Landing() {
-  const [avatarOpen,setAvatarOpen]=useState(false);
   return (
     <div className="min-h-screen bg-[#FAF7F2] text-[#2B1B12]">
       {/* nav */}
@@ -148,7 +145,7 @@ export default function Landing() {
         </div>
       </header>
 
-      <LincolnSequence onOpenAvatar={() => setAvatarOpen(true)} />
+      <LincolnSequence />
       <div className="trust-strip"><span><ShieldCheck size={16}/> Deterministic calculation engine</span><span><Layers size={16}/> Every number explainable</span><span><Calculator size={16}/> Educational — not a product recommendation</span></div>
 
       {/* how it works */}
@@ -176,7 +173,7 @@ export default function Landing() {
         ))}
       </div>
 
-      <section className="meet-section"><div><p className="eyebrow">A CONVERSATION WITH CLARITY</p><h2>Meet Lincoln.<br/>Your guide to what comes next.</h2><p>Explore your model with an interactive guide. Listen to explanations, follow the captions, and take the conversation at your own pace.</p><button onClick={()=>setAvatarOpen(true)} className="voice-primary">Open Avatar <ArrowRight size={16} /></button></div><div className="lincoln-portrait"><img src="/assets/lincoln-realistic.png" alt="Lifelike portrait of Abraham Lincoln in a dark suit and bow tie" loading="lazy" /><div className="lincoln-portrait__caption"><span>Your personal guide</span><button onClick={()=>setAvatarOpen(true)}>Meet Lincoln <ArrowRight size={13} /></button></div></div></section>
+      <section className="meet-section"><div><p className="eyebrow">A CONVERSATION WITH CLARITY</p><h2>Planning, made clearer.<br/>Your guide to what comes next.</h2><p>Explore your model with Lincoln’s chat. Ask about your assessment, understand the assumptions, and take the conversation at your own pace.</p><Link to="/studio" className="voice-primary">Start your assessment <ArrowRight size={16} /></Link></div><div className="lincoln-portrait"><img src="/assets/lincoln-realistic.png" alt="Lifelike portrait of Abraham Lincoln in a dark suit and bow tie" loading="lazy" /><div className="lincoln-portrait__caption"><span>Your planning guide</span><Link to="/studio">Explore your plan <ArrowRight size={13} /></Link></div></div></section>
       {/* approach */}
       <section id="approach" className="bg-[#2B1B12] py-20 text-[#F5EBDD]">
         <div className="mx-auto max-w-5xl px-6">
@@ -213,7 +210,6 @@ export default function Landing() {
         </motion.div>
       </section>
 
-      <AvatarDialog open={avatarOpen} onOpenChange={setAvatarOpen} context="The visitor is on the LifeCast landing page. Explain how LifeCast works, answer their questions, and help them begin an assessment when they are ready."/>
       <footer className="border-t border-[#E9E0D4] px-6 py-8">
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 text-xs text-[#8A7A6B] sm:flex-row">
           <p>LifeCast — an educational needs-modeling prototype for the codeLinc 11 coding challenge.</p>

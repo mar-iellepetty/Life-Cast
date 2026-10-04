@@ -49,7 +49,7 @@ export function useAvatarVoice(options = {}) {
   const patch = useCallback(values => {
     stateRef.current = { ...stateRef.current, ...values };
     if (mounted.current) setState(stateRef.current);
-    if (values.phase) callbacks.current.onStatus?.(values.phase);
+    if (mounted.current && values.phase) callbacks.current.onStatus?.(values.phase);
   }, []);
   const report = useCallback(message => {
     patch({ error: message }); callbacks.current.onError?.(message);
@@ -63,6 +63,7 @@ export function useAvatarVoice(options = {}) {
     const rec = recording.current; recording.current = null;
     if (rec) {
       clearInterval(rec.timer);
+      clearTimeout(rec.permissionTimeout); rec.cancelPermission?.();
       rec.stream?.getTracks().forEach(track => { track.onended = null; track.onmute = null; track.onunmute = null; track.stop(); });
       if (rec.processor) { rec.processor.onaudioprocess = null; rec.processor.disconnect(); }
       rec.source?.disconnect(); rec.gain?.disconnect();
@@ -79,12 +80,20 @@ export function useAvatarVoice(options = {}) {
     completion.current?.({ cancelled: true }); completion.current = null;
     patch({ isSpeaking: false, playbackBlocked: false, phase: recording.current ? 'listening' : 'idle' });
   }, [patch]);
+  const releaseAudio = useCallback(() => {
+    // Dialogs stay mounted while closed. Drop decoded audio and the Blob as well
+    // as pausing playback; a future replay can synthesize the caption again.
+    const audio = audioRef.current;
+    if (audio) { audio.removeAttribute('src'); audio.load(); }
+    if (audioURL.current) { URL.revokeObjectURL(audioURL.current); audioURL.current = null; }
+    patch({ visemes: [], provider: '' });
+  }, [patch]);
   const endVoice = useCallback(() => {
     session.current++; voice.current = false;
     requests.current.forEach(controller => controller.abort()); requests.current.clear();
-    stopRecording(); stopSpeech();
+    stopRecording(); stopSpeech(); releaseAudio();
     patch({ voiceActive: false, phase: 'idle', hint: '' });
-  }, [patch, stopRecording, stopSpeech]);
+  }, [patch, releaseAudio, stopRecording, stopSpeech]);
   const prepareAudio = useCallback(() => {
     const audio = getAudio();
     if (!audio.paused || pendingPlayback.current) return;
@@ -219,9 +228,11 @@ export function useAvatarVoice(options = {}) {
     const AudioContextType = window.AudioContext || /** @type {Window & {webkitAudioContext?: typeof AudioContext}} */ (window).webkitAudioContext;
     if (!AudioContextType) { endVoice(); report('This browser cannot capture microphone audio. Try opening the app in Chrome or Edge.'); return; }
     patch({ phase: 'requesting-microphone', hint: 'Allow microphone access when your browser asks.', error: '' });
-    let expired = false, timeout;
+    let expired = false;
+    /** @type {{ context: AudioContext, stream: MediaStream | null, processor: ScriptProcessorNode | null, source: MediaStreamAudioSourceNode | null, gain: GainNode | null, chunks: Float32Array[], samples: number, timer: ReturnType<typeof setInterval> | null, permissionTimeout: ReturnType<typeof setTimeout> | null, cancelPermission: (() => void) | null }} */
+    let rec;
     try {
-    const rec = { context: new AudioContextType(), stream: null, processor: null, source: null, gain: null, chunks: [], timer: null };
+    rec = { context: new AudioContextType(), stream: null, processor: null, source: null, gain: null, chunks: [], samples: 0, timer: null, permissionTimeout: null, cancelPermission: null };
     recording.current = rec;
     // Both calls start immediately during a user gesture; neither waits for a network request.
     const resumed = rec.context.resume();
@@ -232,10 +243,14 @@ export function useAvatarVoice(options = {}) {
     permissionTimer.current = setTimeout(() => {
       if (token === session.current && recording.current === rec) patch({ hint: 'Still waiting for your browser. Check the microphone permission prompt, or cancel and try Chrome or Edge.' });
     }, 7000);
-      await Promise.race([Promise.all([resumed, acquired]), new Promise((_, reject) => { timeout = setTimeout(() => { expired = true; reject(new DOMException('Permission timeout', 'TimeoutError')); }, 20000); })]);
-      clearTimeout(timeout); clearTimeout(permissionTimer.current);
+      await Promise.race([Promise.all([resumed, acquired]), new Promise((_, reject) => {
+        rec.cancelPermission = () => { expired = true; reject(new DOMException('Cancelled', 'AbortError')); };
+        rec.permissionTimeout = setTimeout(() => { expired = true; reject(new DOMException('Permission timeout', 'TimeoutError')); }, 20000);
+      })]);
+      clearTimeout(rec.permissionTimeout); rec.cancelPermission = null; clearTimeout(permissionTimer.current);
       if (!voice.current || token !== session.current || recording.current !== rec) return;
       if (rec.context.state !== 'running') throw new Error('Audio capture did not start');
+      if (!rec.stream) throw new DOMException('Input disconnected', 'NotReadableError');
       const track = rec.stream.getAudioTracks()[0];
       if (!track || track.readyState === 'ended') throw new DOMException('Input disconnected', 'NotReadableError');
       track.onended = () => { if (recording.current === rec) { endVoice(); report('The microphone disconnected. Reconnect it and start voice again.'); } };
@@ -246,7 +261,11 @@ export function useAvatarVoice(options = {}) {
       const started = performance.now(); let lastSpeech = started, heard = false, maximum = 0, lastMeter = 0, noiseFloor = .002;
       rec.processor.onaudioprocess = event => {
         if (recording.current !== rec || token !== session.current) return;
-        const input = event.inputBuffer.getChannelData(0); rec.chunks.push(new Float32Array(input));
+        const input = event.inputBuffer.getChannelData(0);
+        // Timer throttling in background tabs must not allow an unbounded PCM buffer.
+        const remaining = Math.max(0, Math.floor(rec.context.sampleRate * 29) - rec.samples);
+        if (remaining) { const chunk = new Float32Array(input.subarray(0, remaining)); rec.chunks.push(chunk); rec.samples += chunk.length; }
+        if (rec.samples >= rec.context.sampleRate * 29) { void finishListeningRef.current?.(); return; }
         let power = 0; for (const value of input) power += value * value;
         const level = Math.sqrt(power / input.length), now = performance.now(); maximum = Math.max(maximum, level);
         noiseFloor = Math.min(noiseFloor, Math.max(.0003, level));
@@ -265,7 +284,7 @@ export function useAvatarVoice(options = {}) {
         } else if (!heard && now - started > 5500) patch({ hint: maximum < .0003 ? 'No input is reaching the app. Check your selected microphone and mute switch.' : 'Your input is quiet. Move closer, or use Send now when you have spoken.' });
       }, 150);
     } catch (error) {
-      clearTimeout(timeout);
+      clearTimeout(rec?.permissionTimeout);
       if (token !== session.current || error.name === 'AbortError') return;
       endVoice(); report(friendlyMicrophoneError(error));
     }
@@ -277,21 +296,13 @@ export function useAvatarVoice(options = {}) {
     patch({ voiceActive: true, error: '', hint: '' }); prepareAudio();
     return beginListening(token);
   }, [beginListening, endVoice, patch, prepareAudio]);
-  const playDemo = useCallback(async () => {
-    endVoice(); prepareAudio(); const token = session.current;
-    try {
-      const data = await requestJSON('/assets/lincoln-demo.json');
-      if (token !== session.current) return { cancelled: true };
-      return await speak(data.text, { ...data, audioUrl: '/assets/lincoln-demo.wav', visemeSystem: 'sapi', provider: 'local-demo' });
-    } catch (error) { if (token === session.current && error.name !== 'AbortError') report('The voice demo could not load. Check that the app server is running.'); return { failed: true }; }
-  }, [endVoice, prepareAudio, report, requestJSON, speak]);
   const clearError = useCallback(() => patch({ error: '' }), [patch]);
   useEffect(() => {
     mounted.current = true;
     const hide = () => endVoice(); window.addEventListener('pagehide', hide);
-    return () => { mounted.current = false; endVoice(); window.removeEventListener('pagehide', hide); if (audioURL.current) URL.revokeObjectURL(audioURL.current); };
+    return () => { mounted.current = false; endVoice(); window.removeEventListener('pagehide', hide); };
   }, [endVoice]);
-  return { ...state, audioRef, startVoice, endVoice, finishListening, speak, retryPlayback, prepareAudio, playDemo, stopSpeech, clearError };
+  return { ...state, audioRef, startVoice, endVoice, finishListening, speak, retryPlayback, prepareAudio, stopSpeech, clearError };
 }
 
 export default useAvatarVoice;

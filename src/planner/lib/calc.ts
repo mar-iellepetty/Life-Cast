@@ -326,7 +326,7 @@ export function createPlan(name: string, financialInputs: FinancialInputs, lifeE
 export function createDefaultPlans(inputs: FinancialInputs): Plan[] {
   return [
     createPlan('My Plan', inputs),
-    createPlan('More support', { ...inputs, replacementRatio: Math.max(inputs.replacementRatio, 0.8), incomeReplacementYears: Math.min(70, inputs.incomeReplacementYears + 5), educationFunding: Math.round(inputs.educationFunding * 1.25) }),
+    createPlan('More support', { ...inputs, replacementRatio: Math.max(inputs.replacementRatio, 0.8), incomeReplacementYears: Math.min(70, inputs.incomeReplacementYears + 5), educationFunding: Math.min(1e9, Math.round(inputs.educationFunding * 1.25)) }),
   ];
 }
 
@@ -342,8 +342,10 @@ export function duplicatePlan(plan: Plan, name: string): Plan {
 }
 
 export function uniqueName(names: string[], base: string) {
-  if (!names.includes(base)) return base;
+  const clean = base.trim().slice(0, 100) || 'My Plan';
+  if (!names.includes(clean)) return clean;
   let n = 2;
-  while (names.includes(`${base} ${n}`)) n++;
-  return `${base} ${n}`;
+  const candidate = () => `${clean.slice(0, 100 - String(n).length - 1)} ${n}`;
+  while (names.includes(candidate())) n++;
+  return candidate();
 }

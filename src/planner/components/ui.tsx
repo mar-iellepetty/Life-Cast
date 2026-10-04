@@ -1,4 +1,4 @@
-import { ReactNode, useEffect, useRef } from 'react';
+import { ReactNode, useEffect, useRef, useState } from 'react';
 import type { EventType } from '../lib/model';
 
 // ---------- Modal ----------
@@ -67,27 +67,36 @@ export function MoneyField({ value, onChange, label, id, large }: { value: numbe
 export function NumberField(props: { value: number; onChange: (n: number) => void; min: number; max: number; label: string; suffix?: string; large?: boolean; stepper?: boolean }) {
   const { value, onChange, min, max, label, suffix, large, stepper } = props;
   const clamp = (n: number) => Math.min(max, Math.max(min, n));
+  const [draft, setDraft] = useState(String(value));
+  const focused = useRef(false);
+  useEffect(() => { if (!focused.current) setDraft(String(value)); }, [value]);
+  const commit = (next: number) => { const bounded = clamp(next); setDraft(String(bounded)); onChange(bounded); };
   return (
     <div className={`input number ${large ? 'lg' : ''}`}>
       {stepper && (
-        <button type="button" onClick={() => onChange(clamp(value - 1))} aria-label={`Decrease ${label}`}>
+        <button type="button" onClick={() => commit(value - 1)} aria-label={`Decrease ${label}`}>
           −
         </button>
       )}
       <input
         aria-label={label}
-        inputMode="numeric"
-        value={value}
-        onFocus={(e) => e.target.select()}
+        inputMode={min < 0 ? 'text' : 'numeric'}
+        value={draft}
+        onFocus={(e) => { focused.current = true; e.target.select(); }}
         onChange={(e) => {
-          const n = Number(e.target.value.replace(/[^0-9]/g, ''));
-          if (Number.isFinite(n)) onChange(Math.min(max, n));
+          const next = e.target.value.replace(min < 0 ? /[^0-9-]/g : /[^0-9]/g, '');
+          if (!/^-?\d*$/.test(next)) return;
+          setDraft(next);
+          // Keep incomplete edits local. In particular, '-' must not become +20
+          // while a user is typing -20, or invalidate the current assessment.
+          const n = Number(next);
+          if (next !== '' && next !== '-' && Number.isFinite(n) && n >= min && n <= max) onChange(n);
         }}
-        onBlur={() => onChange(clamp(value))}
+        onBlur={() => { focused.current = false; commit(draft === '-' ? value : Number(draft)); }}
       />
       {suffix && <span className="suffix">{suffix}</span>}
       {stepper && (
-        <button type="button" onClick={() => onChange(clamp(value + 1))} aria-label={`Increase ${label}`}>
+        <button type="button" onClick={() => commit(value + 1)} aria-label={`Increase ${label}`}>
           +
         </button>
       )}

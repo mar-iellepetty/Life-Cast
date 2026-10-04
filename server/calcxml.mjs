@@ -127,14 +127,16 @@ export function normalizeIns01Response(raw, household, request) {
   };
 }
 
-export async function calculateWithCalcXml(input) {
+export async function calculateWithCalcXml(input, { signal } = {}) {
+  signal?.throwIfAborted();
   const household = normalizeHousehold(input.household ?? input);
   const request = buildIns01Request({ ...input, household });
   const response = await fetch(CALCXML_ENDPOINT, {
     method: "POST",
     headers: { "Content-Type": "application/json; charset=UTF-8", Accept: "application/json" },
     body: JSON.stringify(request),
-    signal: AbortSignal.timeout(15000),
+    redirect: "error",
+    signal: AbortSignal.any([AbortSignal.timeout(15000), ...(signal ? [signal] : [])]),
   });
 
   if (!response.ok) throw new Error(`CalcXML Ins01 returned HTTP ${response.status}`);

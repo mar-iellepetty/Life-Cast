@@ -24,6 +24,22 @@ const calc = await import(pathToFileURL(path.join(runtime, 'lib/calc.mjs')));
 const store = await import(pathToFileURL(path.join(runtime, 'state/store.mjs')));
 const plan = (patch = {}, events = [], id = 'plan-a') => ({ id, name: 'My plan', financialInputs: { ...model.defaultInputs, age: 31, annualIncome: 105000, spouse: true, children: 1, youngestChildAge: 4, replacementRatio: 0.75, educationFunding: 100000, mortgage: 340000, otherDebts: 18000, savings: 30000, existingCoverage: 150000, ...patch }, lifeEvents: events, timeline: { termYears: 20, dismissedTermStarts: [] } });
 const event = (type, age, amount = 0, extra = {}) => ({ id: `${type}-${age}`, type, age, title: type, financialImpact: amount, description: 'Test event', isCustom: type === 'custom', ...extra });
+
+test('plan factories and collection limits preserve valid, savable plans at boundaries', () => {
+  const original = plan(); original.name = 'A'.repeat(100);
+  const duplicated = store.reducer({ plans: [original], activeId: original.id }, { type: 'duplicatePlan', id: original.id });
+  assert.equal(duplicated.plans.length, 2);
+  assert.ok(duplicated.plans[1].name.length <= 100);
+  assert.notEqual(duplicated.plans[1].name, original.name);
+  assert.ok(duplicated.plans.every(model.isValidPlan));
+  const plans = Array.from({ length: 30 }, (_, index) => plan({}, [], `plan-${index}`));
+  const state = { plans, activeId: plans[0].id };
+  assert.equal(store.reducer(state, { type: 'duplicatePlan', id: plans[0].id }).plans.length, 30);
+  assert.equal(store.reducer(state, { type: 'addPlan', plan: plan({}, [], 'extra') }).plans.length, 30);
+  const many = plan({}, Array.from({ length: 64 }, (_, index) => event('custom', 40, 1, { id: `event-${index}` })));
+  assert.equal(store.reducer({ plans: [many], activeId: many.id }, { type: 'addEvent', event: event('home', 45) }).plans[0].lifeEvents.length, 64);
+  assert.ok(calc.createDefaultPlans({ ...model.defaultInputs, educationFunding: 1e9 }).every(model.isValidPlan));
+});
 const providerResult = (request) => ({ provider: 'calcxml-ins01', household: request.household, assessment: { provider: 'calcxml-ins01', coverageGap: 674000, totalNeed: 1593510, totalResources: 919892, inputs: { term: request.term, desiredIncome: request.desiredIncome, beforeTaxReturn: 0.05, inflation: 0.02, includeSocsec: 'N' }, range: { low: 674000, balanced: 674000, high: 674000 }, needs: [{ id: 'immediateNeeds', label: 'Immediate needs', amount: 373000, source: 'CalcXML Ins01', explanation: 'Provider result' }], resources: [{ id: 'availableResources', label: 'Available resources', amount: 919892, source: 'CalcXML Ins01', explanation: 'Provider result' }] } });
 function mockFetch(t, implementation) { const previous = globalThis.fetch; globalThis.fetch = implementation; backend.clearPlannerAssessmentCache(); t.after(() => { globalThis.fetch = previous; backend.clearPlannerAssessmentCache(); }); }
 

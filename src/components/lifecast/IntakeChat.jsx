@@ -1,4 +1,3 @@
-import AvatarDialog from './AvatarDialog';
 import { useState } from 'react';
 import { Loader2, ArrowRight, Sparkles } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
@@ -8,7 +7,6 @@ import { normalizeProfile, fmtMoney } from '@/lib/calcEngine';
 
 // Conversational intake — describe your situation, LifeCast reads it into a model.
 export default function IntakeChat({ onProfile }) {
-  const [avatarOpen,setAvatarOpen]=useState(false);
   const [text, setText] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -72,8 +70,6 @@ export default function IntakeChat({ onProfile }) {
       <p className="text-[11px] font-medium uppercase tracking-[0.25em] text-[#C96A18]">Step 1 — Tell your story</p>
       <h2 className="mt-2 font-display text-3xl text-[#4A1C1C]">Describe your situation, in your own words.</h2>
       <p className="mt-2 text-sm text-[#2B1B12]/60">Describe your situation and Lincoln will help organize it, or explore the sample model below.</p>
-      <button onClick={()=>setAvatarOpen(true)} className="voice-control mt-4">Avatar</button>
-      <AvatarDialog open={avatarOpen} onOpenChange={setAvatarOpen} context={text ? `The visitor is preparing an assessment. Their current draft: ${text}` : 'The visitor is starting a LifeCast assessment and may need help describing their household, income, debts, savings, and existing coverage.'}/>
       <Textarea aria-label="Describe your situation"
         value={text}
         onChange={(e) => setText(e.target.value)}

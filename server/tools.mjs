@@ -142,7 +142,8 @@ export const TOOL_CONFIG = {
 const usd = (n) => `$${Math.round(n).toLocaleString("en-US")}`;
 
 /** Execute a tool the model asked for. Returns a JSON-serializable result. */
-export async function runTool(name, input, profile, calculatorOptions = {}) {
+export async function runTool(name, input, profile, calculatorOptions = {}, { signal } = {}) {
+  signal?.throwIfAborted();
   if (!input || typeof input !== "object" || Array.isArray(input)) return { error: "Tool input must be an object." };
   for (const [key, value] of Object.entries(input)) {
     if (typeof value === "number" && (!Number.isFinite(value) || value < 0 || value > 1e10)) return { error: `Invalid numeric input: ${key}.` };
@@ -171,7 +172,7 @@ export async function runTool(name, input, profile, calculatorOptions = {}) {
       finalExpenses: input.finalExpenses ?? calculatorOptions.finalExpenses,
       collegeNeeds: input.collegeNeeds ?? calculatorOptions.collegeNeeds,
       includeSocsec: input.includeSocsec ?? calculatorOptions.includeSocsec,
-    });
+    }, { signal });
     return {
       ...result,
       note: "Authoritative result returned by CalcXML Ins01. Bedrock did not calculate these values.",

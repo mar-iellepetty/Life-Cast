@@ -1,9 +1,8 @@
 import { useRef, useState } from 'react';
-import { Loader2, Sparkles, X, Bot } from 'lucide-react';
+import { Loader2, Sparkles, X } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { base44 } from '@/api/base44Client';
 import { fmtMoney } from '@/lib/calcEngine';
-import AvatarDialog from '@/components/lifecast/AvatarDialog';
 
 const EXAMPLES = [
   'What happens if we have another child in 2029 and I lose my employer coverage?',
@@ -16,7 +15,6 @@ export default function AskBar({ model, profile, events, onApplyEvents, onFocus 
   const [question, setQuestion] = useState('');
   const [loading, setLoading] = useState(false);
   const [answer, setAnswer] = useState(null);
-  const [avatarOpen, setAvatarOpen] = useState(false);
   const history = useRef([]);
 
   const submit = async (override, options = {}) => {
@@ -47,7 +45,6 @@ export default function AskBar({ model, profile, events, onApplyEvents, onFocus 
       return data;
     } catch (e) {
       if (e.name !== 'AbortError') setAnswer({ text: e.message, applied: [] });
-      if (options.fromAvatar) throw e;
     } finally {
       setLoading(false);
     }
@@ -106,16 +103,9 @@ export default function AskBar({ model, profile, events, onApplyEvents, onFocus 
             {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
             Ask
           </button>
-          <button
-            onClick={() => setAvatarOpen(true)}
-            className="flex items-center gap-1.5 rounded-full border border-[#E9E0D4] bg-white px-3.5 py-1.5 text-xs font-medium text-[#2B1B12] transition-colors hover:border-[#E67E22]/50 hover:text-[#C96A18]"
-          >
-            <Bot className="h-3.5 w-3.5" /> Avatar
-          </button>
         </div>
       </div>
 
-      <AvatarDialog open={avatarOpen} onOpenChange={setAvatarOpen} message={answer?.text} profile={profile} onAsk={(prompt, options) => submit(prompt, { ...options, fromAvatar: true })} />
     </div>
   );
 }

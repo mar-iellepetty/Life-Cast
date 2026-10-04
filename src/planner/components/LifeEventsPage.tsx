@@ -28,6 +28,7 @@ export function LifeEventsPage({ plan, focusKey, customKey, onAdd, onUpdate, onR
   // Custom events Lincoln is estimating right now, and the ones shown under the chart.
   const [pending, setPending] = useState<string[]>([]);
   const [recent, setRecent] = useState<string[]>([]);
+  const requests = useRef(new Map<string, AbortController>());
   const inputRef = useRef<HTMLInputElement>(null);
   const calc = calculatePlan(plan);
   const now = plan.financialInputs.age;
@@ -35,6 +36,17 @@ export function LifeEventsPage({ plan, focusKey, customKey, onAdd, onUpdate, onR
   const events = [...plan.lifeEvents].sort((a, b) => a.age - b.age);
   const atEventLimit = events.length >= 64;
   const clampAge = (a: number) => Math.min(calc.endAge, Math.max(calc.startAge, a));
+  useEffect(() => {
+    const activeRequests = requests.current;
+    return () => { for (const controller of activeRequests.values()) controller.abort(); activeRequests.clear(); };
+  }, []);
+  const cancelEstimate = (id: string) => {
+    requests.current.get(id)?.abort();
+    requests.current.delete(id);
+    setPending((ids) => ids.filter((value) => value !== id));
+  };
+  const editEvent = (id: string, patch: Partial<LifeEvent>) => { cancelEstimate(id); onUpdate(id, patch); };
+  const removeEvent = (id: string) => { cancelEstimate(id); onRemove(id); };
 
   useEffect(() => {
     if (focusKey) inputRef.current?.focus();
@@ -45,18 +57,21 @@ export function LifeEventsPage({ plan, focusKey, customKey, onAdd, onUpdate, onR
 
   /** Ask Lincoln to estimate a custom event's cost, then update the event and the timeline. */
   const analyze = (ev: LifeEvent, useAiTitle = false) => {
-    setPending((ids) => [...ids, ev.id]);
+    requests.current.get(ev.id)?.abort();
+    const controller = new AbortController();
+    requests.current.set(ev.id, controller);
+    setPending((ids) => [...ids.filter((id) => id !== ev.id), ev.id]);
     setRecent((ids) => [ev.id, ...ids.filter((id) => id !== ev.id)].slice(0, 3));
-    estimateEvent(plan, ev)
-      .then((est) => onUpdate(ev.id, {
+    estimateEvent(plan, ev, controller.signal)
+      .then((est) => { if (!controller.signal.aborted) onUpdate(ev.id, {
         ...(useAiTitle ? { title: est.title } : {}),
         financialImpact: est.amount,
         category: est.category,
         years: est.years,
         ai: { summary: est.summary, status: 'ready' },
-      }))
-      .catch((err) => onUpdate(ev.id, { ai: { summary: err instanceof Error ? err.message : 'Lincoln could not estimate this event.', status: 'error' } }))
-      .finally(() => setPending((ids) => ids.filter((id) => id !== ev.id)));
+      }); })
+      .catch((err) => { if (!controller.signal.aborted) onUpdate(ev.id, { ai: { summary: err instanceof Error ? err.message : 'Lincoln could not estimate this event.', status: 'error' } }); })
+      .finally(() => { if (requests.current.get(ev.id) === controller) { requests.current.delete(ev.id); setPending((ids) => ids.filter((id) => id !== ev.id)); } });
   };
 
   const addEvent = (ev: LifeEvent, options: { estimate?: boolean; aiTitle?: boolean } = {}) => {
@@ -78,7 +93,7 @@ export function LifeEventsPage({ plan, focusKey, customKey, onAdd, onUpdate, onR
   // Something dropped on the chart: a card (by type), a suggestion (by text), or an existing event.
   const onChartDrop = (drop: ChartDrop, age: number) => {
     if (drop.kind === 'move') {
-      onUpdate(drop.id, { age });
+      editEvent(drop.id, { age });
       setOpen(drop.id);
       return;
     }
@@ -155,7 +170,7 @@ export function LifeEventsPage({ plan, focusKey, customKey, onAdd, onUpdate, onR
           <h2 className="chart-title">Your need over time</h2>
           <p className="chart-sub">Drag an event onto any age. Drag a dot left or right to change when it happens.</p>
           <NeedChart points={points} now={now} height={320} markers={events.map((e) => ({ id: e.id, age: e.age, label: e.title }))} endLabel="Need ends" onDrop={onChartDrop} onMarkerClick={(id) => setOpen(id)} />
-          <EventInsights plan={plan} ids={recent} pending={pending} onOpen={setOpen} onRemove={onRemove} />
+          <EventInsights plan={plan} ids={recent} pending={pending} onOpen={setOpen} onRemove={removeEvent} />
         </section>
       </div>
 
@@ -185,7 +200,7 @@ export function LifeEventsPage({ plan, focusKey, customKey, onAdd, onUpdate, onR
                   </span>
                   <span className={`ev-impact ${impact > 0 ? 'up' : ''}`}>{impact === 0 ? 'No change' : `${impact > 0 ? '+' : '−'}${money(Math.abs(impact))}`}</span>
                 </button>
-                <button className="ev-delete" onClick={() => onRemove(e.id)} aria-label={`Delete ${e.title}`} title="Delete event">
+                <button className="ev-delete" onClick={() => removeEvent(e.id)} aria-label={`Delete ${e.title}`} title="Delete event">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg>
                 </button>
                 </div>
@@ -194,24 +209,24 @@ export function LifeEventsPage({ plan, focusKey, customKey, onAdd, onUpdate, onR
                     {e.isCustom && (
                       <div className="mf">
                         <span>Name</span>
-                        <input className="text-input" maxLength={120} aria-label="Event name" value={e.title} onChange={(x) => onUpdate(e.id, { title: x.target.value.slice(0, 120) || 'Custom event' })} />
+                        <input className="text-input" maxLength={120} aria-label="Event name" value={e.title} onChange={(x) => editEvent(e.id, { title: x.target.value.slice(0, 120) || 'Custom event' })} />
                         {e.title.length >= 120 && <span className="muted small" role="status">Event names can contain up to 120 characters.</span>}
                       </div>
                     )}
                     <div className="mf">
                       <span>Age</span>
-                      <NumberField stepper label="Event age" value={e.age} min={calc.startAge} max={calc.endAge} onChange={(age) => onUpdate(e.id, { age })} />
+                      <NumberField stepper label="Event age" value={e.age} min={calc.startAge} max={calc.endAge} onChange={(age) => editEvent(e.id, { age })} />
                     </div>
                     {(e.isCustom || def?.impactKind === 'money') && (
                       <div className="mf">
                         <span>{e.isCustom ? 'Cost' : def!.impactLabel}</span>
-                        <MoneyField label="Amount" value={e.financialImpact} onChange={(financialImpact) => onUpdate(e.id, { financialImpact })} />
+                        <MoneyField label="Amount" value={e.financialImpact} onChange={(financialImpact) => editEvent(e.id, { financialImpact })} />
                       </div>
                     )}
                     {def?.impactKind === 'percent' && (
                       <div className="mf">
                         <span>Income change</span>
-                        <NumberField label="Income change" value={e.financialImpact} min={-90} max={200} suffix="%" onChange={(financialImpact) => onUpdate(e.id, { financialImpact })} />
+                        <NumberField label="Income change" value={e.financialImpact} min={-90} max={200} suffix="%" onChange={(financialImpact) => editEvent(e.id, { financialImpact })} />
                       </div>
                     )}
                     {e.age < now && <p className="note">Past event: skip it if it is already included in your financial information.</p>}
@@ -222,7 +237,7 @@ export function LifeEventsPage({ plan, focusKey, customKey, onAdd, onUpdate, onR
                           {pending.includes(e.id) ? 'Lincoln is estimating…' : e.ai ? 'Ask Lincoln to estimate again' : 'Ask Lincoln to estimate'}
                         </button>
                       )}
-                      <button className="btn danger-link" onClick={() => onRemove(e.id)}>
+                      <button className="btn danger-link" onClick={() => removeEvent(e.id)}>
                         Remove event
                       </button>
                     </div>

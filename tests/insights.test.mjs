@@ -47,6 +47,20 @@ test("AI estimates are clamped: health ±10%, location 0–10%, event amounts an
   assert.equal(event.category, "other"); assert.equal(event.amount, 5000000); assert.equal(event.years, 30); assert.ok(event.title.length <= 40);
 });
 
+test("health headlines agree with the bounded percentage, including zero and contradictory directions", async (t) => {
+  const mock = t.mock.method(BedrockRuntimeClient.prototype, "send");
+  for (const [json, expected] of [
+    [{ percent: -25, headline: "Strong activity lowered the plan by 25 percent." }, "Strong activity lowered the plan by 10%."],
+    [{ percent: 25, headline: "Short sleep raised the plan by 25%." }, "Short sleep raised the plan by 10%."],
+    [{ percent: 0, headline: "Strong activity lowered the plan by 3%." }, "Your habits did not change the plan."],
+    [{ percent: 4, headline: "Strong activity lowered the plan by 4%." }, "Your habits raised the plan by 4%."],
+  ]) {
+    mock.mock.mockImplementation(reply(json));
+    const result = await analyzeHealth({ days: 90, avgDailySteps: 12000 });
+    assert.equal(result.headline, expected);
+  }
+});
+
 test("location insight geocodes, finds the county and reads FEMA National Risk Index ratings", async (t) => {
   const urls = [];
   const fakeFetch = async (url) => {
@@ -55,12 +69,18 @@ test("location insight geocodes, finds the county and reads FEMA National Risk I
     if (String(url).includes("geocoding.geo.census.gov")) return Response.json({ result: { geographies: { Counties: [{ GEOID: "12086", NAME: "Miami-Dade County" }] } } });
     return Response.json({ features: [{ attributes: { COUNTY: "Miami-Dade", STATEABBRV: "FL", RISK_RATNG: "Very High", RISK_SCORE: 99.6, NRI_VER: "December 2025", HRCN_RISKR: "Very High", WFIR_RISKR: "Relatively Moderate", ERQK_RISKR: "Relatively Low", AVLN_RISKR: "Not Applicable" } }] });
   };
-  t.mock.method(BedrockRuntimeClient.prototype, "send", reply({ percent: 42, headline: "Hurricane risk raised the plan.", reasons: ["Hurricane: very high"] }));
+  const mock = t.mock.method(BedrockRuntimeClient.prototype, "send", reply({ percent: 42, headline: "Hurricane risk raised the plan by 42%.", reasons: ["Hurricane: very high"] }));
   const result = await analyzeLocation({ query: "Miami, FL" }, { fetch: fakeFetch });
   assert.equal(result.found, true); assert.equal(result.county, "Miami-Dade, FL"); assert.equal(result.percent, 10);
+  assert.equal(result.headline, "Hurricane risk raised the plan by 10%.");
   assert.equal(result.hazards[0].label, "Hurricane"); assert.equal(result.hazards.some((h) => h.rating === "Not Applicable"), false);
   assert.equal(result.source.name, "FEMA National Risk Index"); assert.equal(result.source.version, "December 2025");
   assert.ok(urls[2].includes("STCOFIPS%3D%2712086%27"));
+
+  mock.mock.mockImplementation(reply({ percent: -4, headline: "Local risk lowered the plan by 4%." }));
+  const unchanged = await analyzeLocation({ lat: 25.77, lon: -80.19 }, { fetch: fakeFetch });
+  assert.equal(unchanged.percent, 0);
+  assert.equal(unchanged.headline, "Miami-Dade, FL's natural-hazard ratings did not change the illustrative plan.");
 
   const missing = await analyzeLocation({ query: "Nowhere" }, { fetch: async () => Response.json([]) });
   assert.equal(missing.found, false);

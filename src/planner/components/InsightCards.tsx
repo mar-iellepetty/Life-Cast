@@ -53,24 +53,31 @@ function HealthCard({ value, onChange }: { value?: Adjustment; onChange: (v: Adj
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
+  const request = useRef<AbortController | null>(null);
+  useEffect(() => () => { request.current?.abort(); request.current = null; }, []);
 
-  const run = async (metrics: () => Promise<HealthMetrics>, sample: boolean) => {
+  const run = async (metrics: (signal: AbortSignal) => Promise<HealthMetrics>, sample: boolean) => {
+    request.current?.abort();
+    const controller = new AbortController();
+    request.current = controller;
     setError('');
     try {
       setBusy(sample ? 'Reviewing sample habits…' : 'Reading your export…');
-      const m = await metrics();
+      const m = await metrics(controller.signal);
+      if (controller.signal.aborted) return;
       setBusy('Lincoln is reviewing your habits…');
-      onChange(await reviewHealth(m, sample));
+      const result = await reviewHealth(m, sample, controller.signal);
+      if (!controller.signal.aborted) onChange(result);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Your health data could not be reviewed.');
+      if (!controller.signal.aborted) setError(e instanceof Error ? e.message : 'Your health data could not be reviewed.');
     } finally {
-      setBusy(null);
+      if (request.current === controller) { request.current = null; setBusy(null); }
     }
   };
 
   const onFile = (file?: File) => {
     if (!file) return;
-    run(() => readAppleHealthExport(file, (f) => setBusy(`Reading your export… ${Math.round(f * 100)}%`)), false);
+    run((signal) => readAppleHealthExport(file, (f) => { if (!signal.aborted) setBusy(`Reading your export… ${Math.round(f * 100)}%`); }, signal), false);
     if (fileRef.current) fileRef.current.value = '';
   };
 
@@ -100,7 +107,7 @@ function HealthCard({ value, onChange }: { value?: Adjustment; onChange: (v: Adj
           <p className="insight-note">{value.sample ? 'Sample data for demonstration. ' : 'Last 90 days from your Apple Health export. '}Only these averages were sent to Lincoln.</p>
           <div className="insight-actions">
             <button className="btn link" onClick={() => fileRef.current?.click()} disabled={!!busy}>Use a different export</button>
-            <button className="btn link muted-link" onClick={() => onChange(null)}>Remove</button>
+            <button className="btn link muted-link" onClick={() => { request.current?.abort(); request.current = null; setBusy(null); onChange(null); }}>Remove</button>
           </div>
         </>
       ) : (
@@ -110,9 +117,10 @@ function HealthCard({ value, onChange }: { value?: Adjustment; onChange: (v: Adj
             <button className="btn primary sm" onClick={() => fileRef.current?.click()} disabled={!!busy}>Upload Apple Health export</button>
             <button className="btn secondary sm" onClick={() => run(async () => SAMPLE_HEALTH, true)} disabled={!!busy}>Try sample data</button>
           </div>
-          <p className="insight-note">On your iPhone: Health app → your profile picture → Export All Health Data. Choose export.zip or export.xml. The file is read on this computer and is not uploaded.</p>
+          <p className="insight-note">On your iPhone: Health app → your profile picture → Export All Health Data. Choose export.zip or export.xml.</p>
         </>
       )}
+      <p className="insight-note">Choosing an export sends averages of your recent steps, resting heart rate, sleep, exercise and BMI to the LifeCast backend and Amazon Bedrock for AI review. Your raw export stays on this device. Save Plan also saves these averages in this browser.</p>
       <input ref={fileRef} type="file" accept=".zip,.xml,application/zip,text/xml" hidden onChange={(e) => onFile(e.target.files?.[0])} />
       {busy && <p className="insight-status" role="status">{busy}</p>}
       {error && <p className="insight-error" role="alert">{error}</p>}
@@ -126,24 +134,28 @@ function LocationCard({ value, initial, onChange, onLocation }: { value?: Adjust
   const [query, setQuery] = useState(initial);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const request = useRef<AbortController | null>(null);
 
   const run = async (where: string) => {
+    request.current?.abort();
+    const controller = new AbortController();
+    request.current = controller;
     setError('');
     setBusy(true);
     try {
-      onChange(await reviewLocation({ query: where }));
-      onLocation(where);
+      const result = await reviewLocation({ query: where }, controller.signal);
+      if (!controller.signal.aborted) { onChange(result); onLocation(where); }
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'That location could not be checked.');
+      if (!controller.signal.aborted) setError(e instanceof Error ? e.message : 'That location could not be checked.');
     } finally {
-      setBusy(false);
+      if (request.current === controller) { request.current = null; setBusy(false); }
     }
   };
 
   // A location from the intake conversation is checked automatically once.
-  const autoChecked = useRef(false);
   useEffect(() => {
-    if (!autoChecked.current && initial.trim() && !value) { autoChecked.current = true; run(initial.trim()); }
+    if (initial.trim() && !value) run(initial.trim());
+    return () => { request.current?.abort(); request.current = null; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -182,7 +194,7 @@ function LocationCard({ value, initial, onChange, onLocation }: { value?: Adjust
               </a>
             )}
           </p>
-          <button className="btn link muted-link small" onClick={() => onChange(null)} aria-label="Remove location adjustment">Remove</button>
+          <button className="btn link muted-link small" onClick={() => { request.current?.abort(); request.current = null; setBusy(false); onChange(null); }} aria-label="Remove location adjustment">Remove</button>
         </div>
       )}
       {error && <p className="insight-error" role="alert">{error}</p>}

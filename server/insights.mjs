@@ -21,6 +21,16 @@ const round1 = (n) => Math.round(n * 10) / 10;
 const cleanText = (value, max, fallback = "") => (typeof value === "string" && value.trim() ? value.trim().replace(/\s+/g, " ").slice(0, max) : fallback);
 const cleanList = (value, max = 3) => (Array.isArray(value) ? value.map((v) => cleanText(v, 200)).filter(Boolean).slice(0, max) : []);
 
+function adjustmentHeadline(value, percent, fallback) {
+  const headline = cleanText(value, 160, fallback);
+  const lowered = /lower|reduc|decreas/i.test(headline);
+  const raised = /rais|increas|higher/i.test(headline);
+  const consistent = percent === 0 ? !lowered && !raised : percent < 0 ? lowered && !raised : raised && !lowered;
+  if (!consistent) return fallback;
+  // Model prose must use the same bounded adjustment as the plotted result.
+  return headline.replace(/[+\-\u2212]?\d+(?:\.\d+)?\s*(?:%|percent\b)/gi, `${Math.abs(percent)}%`);
+}
+
 // ---------------------------------------------------------------------------
 // 1. Custom life events
 // ---------------------------------------------------------------------------
@@ -87,10 +97,7 @@ export async function analyzeHealth(metrics, { signal } = {}) {
   if (!json) throw new Error("The health review was not returned in the expected format.");
   const percent = round1(clamp(json.percent, -10, 10, 0));
   const fallback = percent === 0 ? "Your habits did not change the plan." : `Your habits ${percent < 0 ? "lowered" : "raised"} the plan by ${Math.abs(percent)}%.`;
-  const headline = cleanText(json.headline, 160, fallback);
-  // Keep the sentence consistent with the clamped number.
-  const consistent = percent === 0 || (percent < 0 ? /lower|reduc|decreas/i.test(headline) && !/rais|increas/i.test(headline) : /rais|increas|higher/i.test(headline) && !/lower|reduc|decreas/i.test(headline));
-  return { percent, headline: consistent ? headline : fallback, reasons: cleanList(json.reasons) };
+  return { percent, headline: adjustmentHeadline(json.headline, percent, fallback), reasons: cleanList(json.reasons) };
 }
 
 // ---------------------------------------------------------------------------
@@ -177,7 +184,9 @@ export async function analyzeLocation(input, { signal, fetch: fetchImpl = fetch 
     score: nri.score,
     hazards: top,
     percent,
-    headline: cleanText(json.headline, 160, `${nri.county} has ${String(nri.overall).toLowerCase()} overall natural-hazard risk.`),
+    headline: adjustmentHeadline(json.headline, percent, percent === 0
+      ? `${nri.county}'s natural-hazard ratings did not change the illustrative plan.`
+      : `${nri.county}'s natural-hazard ratings raised the illustrative plan by ${percent}%.`),
     reasons: cleanList(json.reasons),
     source: { ...NRI_SOURCE, version: nri.version },
   };

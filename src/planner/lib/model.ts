@@ -142,6 +142,31 @@ export const defaultInputs: FinancialInputs = {
 
 const object = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 const finite = (value: unknown, min: number, max: number, integer = false) => typeof value === 'number' && Number.isFinite(value) && value >= min && value <= max && (!integer || Number.isInteger(value));
+const shortText = (value: unknown, max: number) => typeof value === 'string' && value.length <= max;
+
+function isValidAdjustment(value: unknown, min: number): value is Adjustment {
+  if (!object(value) || !finite(value.percent, min, 10) || !shortText(value.headline, 320)
+    || !Array.isArray(value.reasons) || value.reasons.length > 3 || value.reasons.some(reason => !shortText(reason, 200))
+    || typeof value.at !== 'string' || value.at.length > 50 || !Number.isFinite(Date.parse(value.at))) return false;
+  for (const key of ['place', 'county', 'overall']) if (value[key] !== undefined && !shortText(value[key], 200)) return false;
+  if (value.sample !== undefined && typeof value.sample !== 'boolean') return false;
+  if (value.hazards !== undefined && (!Array.isArray(value.hazards) || value.hazards.length > 4
+    || value.hazards.some(hazard => !object(hazard) || !shortText(hazard.label, 100) || !shortText(hazard.rating, 100)))) return false;
+  if (value.source !== undefined) {
+    if (!object(value.source) || !shortText(value.source.name, 100) || !shortText(value.source.url, 2048)
+      || (value.source.version !== undefined && !shortText(value.source.version, 100))) return false;
+    try {
+      const url = new URL(value.source.url as string);
+      if (url.protocol !== 'https:' || url.username || url.password) return false;
+    } catch { return false; }
+  }
+  if (value.metrics !== undefined) {
+    if (!object(value.metrics) || !finite(value.metrics.days, 1, 3650)) return false;
+    const ranges: Record<string, [number, number]> = { days: [1, 3650], avgDailySteps: [0, 100000], restingHeartRate: [20, 250], sleepHours: [0, 24], exerciseMinutes: [0, 1440], bmi: [8, 100] };
+    if (Object.entries(value.metrics).some(([key, metric]) => !Object.hasOwn(ranges, key) || (metric !== undefined && !finite(metric, ...ranges[key])))) return false;
+  }
+  return true;
+}
 
 /** Validate persisted or imported plans before calculations or external requests. */
 export function isValidFinancialInputs(value: unknown): value is FinancialInputs {
@@ -164,6 +189,9 @@ export function isValidPlan(value: unknown): value is Plan {
   if (![10, 15, 20, 30].includes(value.timeline.termYears as number) || !Array.isArray(value.timeline.dismissedTermStarts)
     || value.timeline.dismissedTermStarts.length > 10 || value.timeline.dismissedTermStarts.some((age) => !finite(age, 18, 100, true))) return false;
   if (value.templateId !== undefined && (typeof value.templateId !== 'string' || value.templateId.length > 100)) return false;
+  if (value.adjustments !== undefined && (!object(value.adjustments)
+    || (value.adjustments.health !== undefined && !isValidAdjustment(value.adjustments.health, -10))
+    || (value.adjustments.location !== undefined && !isValidAdjustment(value.adjustments.location, 0)))) return false;
   const ids = new Set();
   for (const event of value.lifeEvents) {
     if (!object(event) || typeof event.id !== 'string' || !/^[a-zA-Z0-9_-]{1,100}$/.test(event.id) || ids.has(event.id)) return false;
@@ -174,6 +202,7 @@ export function isValidPlan(value: unknown): value is Plan {
       || typeof event.description !== 'string' || event.description.length > 2000 || typeof event.isCustom !== 'boolean') return false;
     if (event.category !== undefined && !['education', 'mortgage', 'other'].includes(event.category as string)) return false;
     if (event.years !== undefined && !finite(event.years, 1, 100, true)) return false;
+    if (event.ai !== undefined && (!object(event.ai) || !['ready', 'error'].includes(event.ai.status as string) || !shortText(event.ai.summary, 2000))) return false;
   }
   return true;
 }

@@ -30,7 +30,7 @@ const attr = (tag: string, name: string) => tag.match(new RegExp(`\\s${name}="([
 const parseDate = (s?: string) => (s ? Date.parse(s.replace(' ', 'T').replace(/ ([+-]\d{2})(\d{2})$/, '$1:$2')) : NaN);
 
 /** Summarize the last 90 days from a stream of export.xml text. */
-async function summarize(stream: ReadableStream<Uint8Array>, onProgress?: (bytes: number) => void): Promise<HealthMetrics> {
+async function summarize(stream: ReadableStream<Uint8Array>, onProgress?: (bytes: number) => void, signal?: AbortSignal): Promise<HealthMetrics> {
   const cutoff = Date.now() - WINDOW_DAYS * 86400000;
   const stepsByDay = new Map<string, number>();
   const exerciseByDay = new Map<string, number>();
@@ -56,22 +56,37 @@ async function summarize(stream: ReadableStream<Uint8Array>, onProgress?: (bytes
 
   const reader = stream.pipeThrough(new TextDecoderStream() as unknown as ReadableWritablePair<string, Uint8Array>).getReader();
   let buffer = '', read = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    read += value.length;
-    onProgress?.(read);
-    buffer += value;
-    let at = 0;
+  let completed = false;
+  const recordStart = '<Record ';
+  const abort = () => { void reader.cancel(signal?.reason).catch(() => {}); };
+  signal?.addEventListener('abort', abort, { once: true });
+  try {
+    signal?.throwIfAborted();
     for (;;) {
-      const open = buffer.indexOf('<Record ', at);
-      if (open === -1) { at = buffer.length; break; }
-      const close = buffer.indexOf('>', open);
-      if (close === -1) { at = open; break; }
-      handle(buffer.slice(open, close + 1));
-      at = close + 1;
+      const { done, value } = await reader.read();
+      signal?.throwIfAborted();
+      if (done) { completed = true; break; }
+      read += value.length;
+      onProgress?.(read);
+      buffer += value;
+      let at = 0;
+      for (;;) {
+        const open = buffer.indexOf(recordStart, at);
+        // A chunk may end anywhere inside '<Record '. Retain that suffix for
+        // the next read instead of silently dropping the following record.
+        if (open === -1) { at = Math.max(at, buffer.length - recordStart.length + 1); break; }
+        const close = buffer.indexOf('>', open);
+        if (close === -1) { at = open; break; }
+        handle(buffer.slice(open, close + 1));
+        at = close + 1;
+      }
+      buffer = buffer.slice(at);
+      if (buffer.length > 65536) throw new Error('The health export contains an unreadable record. Choose a valid export.xml file.');
     }
-    buffer = buffer.slice(at);
+  } finally {
+    signal?.removeEventListener('abort', abort);
+    if (!completed) await reader.cancel().catch(() => {});
+    reader.releaseLock();
   }
 
   const avg = (m: Map<string, number>) => (m.size ? [...m.values()].reduce((a, b) => a + b, 0) / m.size : undefined);
@@ -120,9 +135,10 @@ async function zipEntryStream(file: File): Promise<ReadableStream<Uint8Array>> {
   throw new Error('No export.xml was found in this zip. Choose the export.zip from the Health app.');
 }
 
-export async function readAppleHealthExport(file: File, onProgress?: (fraction: number) => void): Promise<HealthMetrics> {
+export async function readAppleHealthExport(file: File, onProgress?: (fraction: number) => void, signal?: AbortSignal): Promise<HealthMetrics> {
+  signal?.throwIfAborted();
   const isZip = /\.zip$/i.test(file.name) || file.type === 'application/zip';
   const stream = isZip ? await zipEntryStream(file) : file.stream();
   // Progress is measured on bytes read; for zips this is uncompressed bytes, so cap the estimate.
-  return summarize(stream, onProgress ? (bytes) => onProgress(Math.min(0.99, bytes / (isZip ? file.size * 12 : file.size))) : undefined);
+  return summarize(stream, onProgress ? (bytes) => onProgress(Math.min(0.99, bytes / (isZip ? file.size * 12 : file.size))) : undefined, signal);
 }

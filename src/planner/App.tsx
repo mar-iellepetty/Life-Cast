@@ -119,11 +119,12 @@ export default function App() {
           <IntakeChat initial={active?.financialInputs || answers} onComplete={complete} onExit={() => navigate('/')} />
         </>}
 
-        {stage === 1 && active && <Planning plan={active} onInputs={(patch) => dispatch({ type: 'setInputs', patch })} onAdjustment={(key, value) => dispatch({ type: 'setAdjustment', key, value })} onBack={() => go(0)} onNext={() => go(2)} />}
+        {stage === 1 && active && <Planning key={active.id} plan={active} onInputs={(patch) => dispatch({ type: 'setInputs', patch })} onAdjustment={(key, value) => dispatch({ type: 'setAdjustment', key, value })} onBack={() => go(0)} onNext={() => go(2)} />}
 
         {stage === 2 && active && (
           <>
             <LifeEventsPage
+              key={active.id}
               plan={active}
               focusKey={focusEvents}
               customKey={customKey}

@@ -4,7 +4,7 @@ import { EVENT_DEFS, EventType, LifeEvent, makeEvent, uid, CURRENT_YEAR } from '
 
 const KEYWORDS: [Exclude<EventType, 'custom'>, RegExp][] = [
   ['child', /\b(baby|child|children|kid|kids|pregnan|son|daughter|adopt)/],
-  ['home', /\b(home|house|condo|apartment|mortgage|move)/],
+  ['home', /\b(buy|buying|bought|purchas\w*|move|moving)\b.*\b(home|house|condo|apartment|place)\b|\bnew (home|house|condo|apartment)\b|\b(take out|new) (a )?mortgage\b/],
   ['marriage', /\b(marr|wedding|spouse|partner|engag)/],
   ['education', /\b(college|university|tuition|school|degree)/],
   ['retirement', /\bretir/],
@@ -46,7 +46,9 @@ export function parseEvent(text: string, currentAge: number): ParsedEvent | null
     if (amount < 1000) amount = undefined;
   }
 
-  const match = KEYWORDS.find(([, re]) => re.test(q));
+  // Disasters, damage, illness and similar events have no standard type: Lincoln estimates them.
+  const unusual = /\b(hurricane|flood\w*|fire\w*|wildfire\w*|tornado\w*|earthquake\w*|storm\w*|damage\w*|repair\w*|accident\w*|disaster\w*|illness\w*|surger\w*|lawsuit\w*|divorc\w*|caring|care for|pay(ing)? off)\b/.test(q);
+  const match = unusual ? undefined : KEYWORDS.find(([, re]) => re.test(q));
   if (match) {
     const ev = makeEvent(match[0], age);
     if (amount && EVENT_DEFS[match[0]].impactKind === 'money') ev.financialImpact = amount;

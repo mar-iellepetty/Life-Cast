@@ -6,7 +6,7 @@ import { FinancialInputs, LifeEvent, makeEvent } from '../lib/model';
 import { compact, money } from '../lib/format';
 import { MoneyField, NumberField } from './ui';
 
-type Step = 'age' | 'dependents' | 'children' | 'income' | 'debts' | 'debtAmounts' | 'coverage' | 'coverageAmount' | 'savings' | 'events' | 'done';
+type Step = 'age' | 'dependents' | 'children' | 'income' | 'debts' | 'debtAmounts' | 'coverage' | 'coverageAmount' | 'savings' | 'location' | 'events' | 'done';
 
 interface Message {
   from: 'lincoln' | 'user';
@@ -24,6 +24,7 @@ const PROMPTS: Record<Exclude<Step, 'done'>, { text: string; why: string }> = {
   coverage: { text: 'Do you already have life insurance, including any through work?', why: 'So we never recommend coverage you already have.' },
   coverageAmount: { text: 'How much coverage do you have in total?', why: 'Group coverage through an employer counts too.' },
   savings: { text: 'Roughly how much do you have in savings and investments?', why: 'Savings your family could use reduce the coverage you need.' },
+  location: { text: 'Where do you live? A city and state, or a ZIP code, is enough.', why: 'Local risks such as hurricanes, floods or wildfires can affect your plan. We check FEMA’s National Risk Index for your county.' },
   events: { text: 'Last one. Are any big changes coming up in the next few years?', why: 'Life events like a new child or a new home change how much protection you need.' },
 };
 
@@ -47,7 +48,7 @@ export function IntakeChat({ initial, onComplete, onExit }: Props) {
   const voice = useAvatarVoice();
   const logRef = useRef<HTMLDivElement>(null);
   const set = (patch: Partial<FinancialInputs>) => setV((p) => ({ ...p, ...patch, ...('children' in patch || 'youngestChildAge' in patch ? { childAges: undefined } : {}) }));
-  const order: Step[] = ['age', 'dependents', 'income', 'debts', 'coverage', 'savings', 'events', 'done'];
+  const order: Step[] = ['age', 'dependents', 'income', 'debts', 'coverage', 'savings', 'location', 'events', 'done'];
   const progress = Math.min(1, order.indexOf(step === 'children' ? 'dependents' : step === 'debtAmounts' ? 'debts' : step === 'coverageAmount' ? 'coverage' : step) / (order.length - 1));
 
   useEffect(() => {
@@ -257,8 +258,26 @@ export function IntakeChat({ initial, onComplete, onExit }: Props) {
               </div>
               <Row>
                 <MoneyField large label="Savings" value={v.savings} onChange={(savings) => set({ savings })} />
-                <Send onClick={() => reply(v.savings ? money(v.savings) : 'No savings yet', 'events')} />
+                <Send onClick={() => reply(v.savings ? money(v.savings) : 'No savings yet', 'location')} />
               </Row>
+            </>
+          )}
+
+          {step === 'location' && (
+            <>
+              <Row>
+                <input
+                  className="text-input dock-text"
+                  value={v.location ?? ''}
+                  maxLength={120}
+                  placeholder="For example: Miami, FL or 33101"
+                  aria-label="Where you live"
+                  onChange={(e) => set({ location: e.target.value.slice(0, 120) })}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && v.location?.trim()) reply(v.location.trim(), 'events'); }}
+                />
+                <Send onClick={() => (v.location?.trim() ? reply(v.location.trim(), 'events') : undefined)} />
+              </Row>
+              <button className="btn link small" onClick={() => { set({ location: undefined }); reply('I’d rather not say', 'events'); }}>Skip this question</button>
             </>
           )}
 
@@ -278,6 +297,7 @@ export function IntakeChat({ initial, onComplete, onExit }: Props) {
             <div className="intake-review">
               <h3>Confirm your details</h3>
               <InputSummary inputs={v} />
+              {v.location && <p>Location: {v.location}. We will check local environmental risk on the planning page.</p>}
               {events.length > 0 && <p>Planned events: {events.map(event => `${event.title} at age ${event.age}`).join(', ')}. You can edit their amounts in Life Events.</p>}
               <button className="btn primary xl" onClick={() => { voice.endVoice(); onComplete(v, events); }}>Confirm details and calculate →</button>
               <button className="btn link" onClick={() => { setStep('age'); setMessages([{ from: 'lincoln', ...PROMPTS.age }]); }}>Change my answers</button>

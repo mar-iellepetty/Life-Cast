@@ -1,7 +1,7 @@
 import { useEffect, useReducer, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { calculatePlan, createPlan } from './lib/calc';
-import { FinancialInputs, LifeEvent, Plan, defaultInputs, makeEvent } from './lib/model';
+import { Adjustment, FinancialInputs, LifeEvent, Plan, adjustmentPercent, defaultInputs, makeEvent } from './lib/model';
 import { PlanningState, clearSavedPlans, emptyState, loadSavedPlans, reducer, savePlans } from './state/store';
 import { ExampleScenario } from './data/templates';
 import { STAGES, TopNav } from './components/TopNav';
@@ -9,6 +9,8 @@ import { IntakeChat } from './components/IntakeChat';
 import { GuideChat } from './components/GuideChat';
 import { NeedChart } from './components/NeedChart';
 import { TotalPanel } from './components/TotalPanel';
+import { PlanSliders, type SliderDraft } from './components/PlanSliders';
+import { InsightCards } from './components/InsightCards';
 import { LifeEventsPage } from './components/LifeEventsPage';
 import { PlansBar } from './components/PlansBar';
 import { ExampleModal } from './components/ExampleModal';
@@ -117,7 +119,7 @@ export default function App() {
           <IntakeChat initial={active?.financialInputs || answers} onComplete={complete} onExit={() => navigate('/')} />
         </>}
 
-        {stage === 1 && active && <Planning plan={active} onInputs={(patch) => dispatch({ type: 'setInputs', patch })} onBack={() => go(0)} onNext={() => go(2)} />}
+        {stage === 1 && active && <Planning plan={active} onInputs={(patch) => dispatch({ type: 'setInputs', patch })} onAdjustment={(key, value) => dispatch({ type: 'setAdjustment', key, value })} onBack={() => go(0)} onNext={() => go(2)} />}
 
         {stage === 2 && active && (
           <>
@@ -141,6 +143,7 @@ export default function App() {
               onAdjust={() => go(1)}
               onSave={save}
               onCompare={() => setComparing(true)}
+              onAddPlan={addPlan}
             />
             <StageNav stage={3} onBack={() => go(2)} onNext={() => go(4)} />
             <div className="review-exit">
@@ -206,31 +209,46 @@ function StageNav({ stage, onBack, onNext }: { stage: number; onBack: () => void
 
 // ---------- Financial planning: guide on top, one large chart, the total on the side ----------
 
-function Planning({ plan, onInputs, onBack, onNext }: { plan: Plan; onInputs: (p: Partial<FinancialInputs>) => void; onBack: () => void; onNext: () => void }) {
-  const calc = calculatePlan(plan);
-  const now = plan.financialInputs.age;
+function Planning({ plan, onInputs, onAdjustment, onBack, onNext }: { plan: Plan; onInputs: (p: Partial<FinancialInputs>) => void; onAdjustment: (key: 'health' | 'location', value: Adjustment | null) => void; onBack: () => void; onNext: () => void }) {
+  // While a slider is dragged the chart redraws from this draft; the plan is updated when it settles.
+  const [draft, setDraft] = useState<SliderDraft | null>(null);
+  const shown: Plan = draft ? { ...plan, financialInputs: { ...plan.financialInputs, ...draft, retirementAge: Math.max(plan.financialInputs.retirementAge, (draft.age ?? plan.financialInputs.age) + 1) } } : plan;
+  const calc = calculatePlan(shown);
+  const now = shown.financialInputs.age;
   const hasChildren = calc.today.childrenNeed > 0;
   const future = calc.projection.filter((p) => p.age >= now);
   const ends = future.find((p) => (hasChildren ? p.childrenNeed : p.estimatedCoverageNeed) === 0)?.age ?? calc.endAge;
   const points = future
     .filter((p) => p.age <= Math.min(calc.endAge, Math.max(ends + 3, now + 15)))
     .map((p) => ({ age: p.age, year: p.year, value: hasChildren ? p.childrenNeed : p.estimatedCoverageNeed }));
+  const pct = adjustmentPercent(plan);
+  const parts = [plan.adjustments?.health && `health ${plan.adjustments.health.percent > 0 ? '+' : ''}${plan.adjustments.health.percent}%`, plan.adjustments?.location && `location ${plan.adjustments.location.percent > 0 ? '+' : ''}${plan.adjustments.location.percent}%`].filter(Boolean);
+  const adjusted = pct !== 0 ? { points: points.map((p) => ({ ...p, value: Math.round(p.value * (1 + pct / 100)) })), label: `Adjusted ${pct > 0 ? '+' : ''}${pct}%` } : undefined;
 
   return (
     <div className="planning fade">
       <GuideChat plan={plan} />
 
       <div className="planning-grid">
-        <section className="panel chart-panel big">
-          <p className="projection-label">Illustrative timeline projection</p>
-          <h1 className="chart-title">{hasChildren ? 'What your children would need' : 'Your coverage need over time'}</h1>
-          <p className="chart-sub">
-            {hasChildren
-              ? 'Explore how modeled support for your children changes as they grow. This timeline uses the assumptions in your plan.'
-              : 'Explore how modeled needs change as debts are paid and support years pass. This timeline uses the assumptions in your plan.'}
-          </p>
-          <NeedChart points={points} now={now} endLabel={hasChildren ? 'Children independent' : 'Need ends'} height={420} />
-        </section>
+        <div className="planning-main">
+          <section className="panel chart-panel big">
+            <p className="projection-label">Illustrative timeline projection</p>
+            <h1 className="chart-title">{hasChildren ? 'What your children would need' : 'Your coverage need over time'}</h1>
+            <p className="chart-sub">
+              {hasChildren
+                ? 'Explore how modeled support for your children changes as they grow. This timeline uses the assumptions in your plan.'
+                : 'Explore how modeled needs change as debts are paid and support years pass. This timeline uses the assumptions in your plan.'}
+            </p>
+            <PlanSliders key={plan.id} inputs={plan.financialInputs} draft={draft} onPreview={setDraft} onCommit={onInputs} />
+            <NeedChart points={points} now={now} endLabel={hasChildren ? 'Children independent' : 'Need ends'} height={400} adjusted={adjusted} />
+            {pct !== 0 && (
+              <p className="adjusted-note">
+                Dashed line: the timeline adjusted {pct > 0 ? 'up' : 'down'} {Math.abs(pct)}% for your {parts.join(' and ')} (capped at 10%). Illustrative only; your calculator result is unchanged.
+              </p>
+            )}
+          </section>
+          <InsightCards plan={plan} onAdjustment={onAdjustment} onLocation={(location) => onInputs({ location })} />
+        </div>
         <TotalPanel plan={plan} onInputs={onInputs} />
       </div>
 

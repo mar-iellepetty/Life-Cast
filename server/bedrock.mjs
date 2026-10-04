@@ -38,7 +38,7 @@ export async function bedrockConfigured() {
 /**
  * Low-level Converse call. Returns the assistant's text.
  */
-async function converse({ system, user, messages, maxTokens = 600, temperature = 0.2, signal }) {
+export async function converse({ system, user, messages, maxTokens = 600, temperature = 0.2, signal }) {
   const res = await client.send(
     new ConverseCommand({
       modelId: MODEL_ID,
@@ -52,7 +52,7 @@ async function converse({ system, user, messages, maxTokens = 600, temperature =
 }
 
 /** Pull the first JSON object out of a model response, tolerating stray prose. */
-function extractJson(text) {
+export function extractJson(text) {
   const start = text.indexOf("{");
   const end = text.lastIndexOf("}");
   if (start === -1 || end === -1 || end < start) return null;

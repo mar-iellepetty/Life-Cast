@@ -21,6 +21,8 @@ export interface FinancialInputs {
   incomeReplacementYears: number;
   replacementRatio: number; // share of income the family would need, e.g. 0.7
   retirementAge: number;
+  /** Where the household lives (city and state, or ZIP). Used for environmental-risk insights. */
+  location?: string;
 }
 
 export type EventType = 'marriage' | 'child' | 'home' | 'education' | 'career' | 'retirement' | 'custom';
@@ -39,6 +41,30 @@ export interface LifeEvent {
   category?: ImpactCategory;
   /** Custom events: years over which the obligation is paid down. */
   years?: number;
+  /** Lincoln's AI estimate for a custom event, shown under the timeline. */
+  ai?: { summary: string; status: 'ready' | 'error' };
+}
+
+/** A small, AI-explained adjustment to the illustrative timeline (never to the CalcXML assessment). */
+export interface Adjustment {
+  percent: number;
+  headline: string;
+  reasons: string[];
+  at: string;
+  /** Location insights: where, what FEMA reports, and the source. */
+  place?: string;
+  county?: string;
+  overall?: string;
+  hazards?: { label: string; rating: string }[];
+  source?: { name: string; url: string; version?: string };
+  /** Health insights: the averages that were reviewed. */
+  metrics?: Record<string, number | undefined>;
+  sample?: boolean;
+}
+
+export interface PlanAdjustments {
+  health?: Adjustment;
+  location?: Adjustment;
 }
 
 export type TermLength = 10 | 15 | 20 | 30;
@@ -57,7 +83,12 @@ export interface Plan {
   timeline: Timeline;
   /** Set when a plan was created from an example scenario. */
   templateId?: string;
+  /** Apple Health and location insights applied to the illustrative timeline. */
+  adjustments?: PlanAdjustments;
 }
+
+/** Total illustrative adjustment, capped at plus or minus 10 percent. */
+export const adjustmentPercent = (plan: Plan) => Math.max(-10, Math.min(10, (plan.adjustments?.health?.percent ?? 0) + (plan.adjustments?.location?.percent ?? 0)));
 
 export interface EventDef {
   type: Exclude<EventType, 'custom'>;
@@ -121,6 +152,7 @@ export function isValidFinancialInputs(value: unknown): value is FinancialInputs
     || !finite(value.replacementRatio, 0, 1) || !finite(value.children, 0, 8, true)
     || !finite(value.youngestChildAge, 0, 21, true) || typeof value.spouse !== 'boolean' || typeof value.otherDependents !== 'boolean') return false;
   if (value.spouseIncome !== undefined && !finite(value.spouseIncome, 0, 1e9)) return false;
+  if (value.location !== undefined && (typeof value.location !== 'string' || value.location.length > 120)) return false;
   if (value.childAges !== undefined && (!Array.isArray(value.childAges) || value.childAges.length !== value.children || value.childAges.some((age) => !finite(age, 0, 21, true)))) return false;
   return true;
 }

@@ -26,6 +26,8 @@ interface Props {
   /** Enables dropping events onto the chart and dragging event dots to a new age. */
   onDrop?: (drop: ChartDrop, age: number) => void;
   onMarkerClick?: (id: string) => void;
+  /** Optional dashed line, e.g. the timeline after health and location adjustments. */
+  adjusted?: { points: ChartPoint[]; label: string };
 }
 
 function niceStep(max: number) {
@@ -36,7 +38,7 @@ function niceStep(max: number) {
 }
 
 /** One line, one shaded area, a "today" marker and minimal labels. */
-export function NeedChart({ points, now, markers = [], endLabel, height = 380, onDrop, onMarkerClick }: Props) {
+export function NeedChart({ points, now, markers = [], endLabel, height = 380, onDrop, onMarkerClick, adjusted }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const [w, setW] = useState(800);
   const [hover, setHover] = useState<ChartPoint | null>(null);
@@ -54,15 +56,50 @@ export function NeedChart({ points, now, markers = [], endLabel, height = 380, o
     return () => ro.disconnect();
   }, []);
 
-  const M = { l: 56, r: 20, t: 20, b: 30 };
   const a0 = points[0].age;
   const a1 = points[points.length - 1].age;
   const span = a1 - a0;
-  const max = Math.max(...points.map((p) => p.value));
+  const max = Math.max(...points.map((p) => p.value), ...(adjusted?.points.map((p) => p.value) ?? []));
   const step = niceStep(max * 1.08);
   const yMax = Math.max(1, Math.ceil((max * 1.08) / step)) * step;
-  const x = (age: number) => M.l + ((age - a0) / Math.max(1, span)) * (w - M.l - M.r);
+  const ML = 56, MR = 20;
+  const x = (age: number) => ML + ((age - a0) / Math.max(1, span)) * (w - ML - MR);
+  const point = (age: number) => points.find((p) => p.age === age);
+
+  // Every label (Today, life events, the adjusted line) is centered over its point and placed in the
+  // lowest row where it does not overlap a neighbour. The chart reserves top space for those rows.
+  type Label = { key: string; age: number; text: string; value: number; cls: string };
+  const labels: Label[] = [];
+  const todayPoint = point(now);
+  if (todayPoint) labels.push({ key: 'today', age: now, text: `Today: ${money(todayPoint.value)}`, value: todayPoint.value, cls: 'nc-today-label' });
+  for (const m of markers) {
+    const age = moving && moving.id === m.id && moving.moved ? moving.age : m.age;
+    const p = point(age);
+    if (p) labels.push({ key: `ev-${m.id ?? m.label}-${m.age}`, age, text: m.label.length > 22 ? `${m.label.slice(0, 21)}…` : m.label, value: p.value, cls: `nc-marker-label ${age < now ? 'past' : ''}` });
+  }
+  if (adjusted) {
+    const future = adjusted.points.filter((p) => p.age >= Math.max(now, a0));
+    const at = future[Math.floor(future.length / 3)];
+    if (at) labels.push({ key: 'adjusted', age: at.age, text: adjusted.label, value: at.value, cls: 'nc-adjusted-label' });
+  }
+  const placed = (() => {
+    const rowsEnd: number[] = [];
+    return [...labels]
+      .sort((a, b) => a.age - b.age || (a.key === 'today' ? -1 : 1))
+      .map((l) => {
+        const half = l.text.length * 3.5 + 8;
+        const left = x(l.age) - half;
+        let row = rowsEnd.findIndex((end) => end < left);
+        if (row === -1) row = rowsEnd.length;
+        rowsEnd[row] = x(l.age) + half;
+        return { ...l, row };
+      });
+  })();
+  const rows = placed.length ? Math.max(...placed.map((l) => l.row)) + 1 : 0;
+  const M = { l: ML, r: MR, t: 20 + rows * 16, b: 30 };
   const y = (v: number) => M.t + (1 - v / yMax) * (height - M.t - M.b);
+  // Labels live in a reserved band above the plot (row 0 closest to it), joined to their point by a thin line.
+  const labelY = (l: { row: number }) => M.t - 8 - l.row * 16;
   const ageAt = (clientX: number) => {
     const r = ref.current!.getBoundingClientRect();
     return Math.min(a1, Math.max(a0, Math.round(a0 + ((clientX - r.left - M.l) / (w - M.l - M.r)) * span)));
@@ -76,9 +113,9 @@ export function NeedChart({ points, now, markers = [], endLabel, height = 380, o
       .join('');
   const futureLine = line(Math.max(now, a0), a1);
   const area = `${futureLine}L${x(a1)},${y(0)}L${x(Math.max(now, a0))},${y(0)}Z`;
-  const point = (age: number) => points.find((p) => p.age === age);
-  const today = point(now);
+  const today = todayPoint;
   const hoverEvents = hover ? markers.filter((m) => m.age === hover.age).map((m) => m.label) : [];
+  const hoverAdjusted = hover && adjusted ? adjusted.points.find((p) => p.age === hover.age)?.value : undefined;
   const end = endLabel ? points.find((p, i) => i > 0 && p.value === 0 && points[i - 1].value > 0) : undefined;
   const targetAge = moving?.moved ? moving.age : dropAge;
 
@@ -175,7 +212,25 @@ export function NeedChart({ points, now, markers = [], endLabel, height = 380, o
         {now > a0 && <path d={line(a0, now)} className="nc-line past" />}
         <path d={area} className="nc-area" />
         <path d={futureLine} className="nc-line" />
+        {adjusted && adjusted.points.length > 1 && (
+          <g pointerEvents="none">
+            <path d={adjusted.points.filter((p) => p.age >= Math.max(now, a0)).map((p, i) => `${i ? 'L' : 'M'}${x(p.age).toFixed(1)},${y(p.value).toFixed(1)}`).join('')} className="nc-adjusted" />
 
+          </g>
+        )}
+
+        {placed.map((l) => {
+          const ly = labelY(l);
+          const dotY = y(l.value);
+          return (
+            <g key={`label-${l.key}`} pointerEvents="none">
+              {dotY - ly > 10 && <line x1={x(l.age)} x2={x(l.age)} y1={ly + 4} y2={dotY - 8} className="nc-label-stem" />}
+              <text x={Math.min(w - MR - (l.text.length * 3.5 + 4), Math.max(ML + l.text.length * 3.5 + 4, x(l.age)))} y={ly} textAnchor="middle" className={l.cls}>
+                {l.text}
+              </text>
+            </g>
+          );
+        })}
         {markers.map((m) => {
           const age = moving && moving.id === m.id && moving.moved ? moving.age : m.age;
           const p = point(age);
@@ -199,9 +254,6 @@ export function NeedChart({ points, now, markers = [], endLabel, height = 380, o
         {today && (
           <g pointerEvents="none">
             <circle cx={x(now)} cy={y(today.value)} r={7} className="nc-today" />
-            <text x={x(now) + 12} y={y(today.value) - 12} className="nc-today-label">
-              Today: {money(today.value)}
-            </text>
           </g>
         )}
         {end && (
@@ -225,15 +277,20 @@ export function NeedChart({ points, now, markers = [], endLabel, height = 380, o
             <g pointerEvents="none">
               <line x1={x(hover.age)} x2={x(hover.age)} y1={M.t} y2={height - M.b} className="guide" />
               <g transform={`translate(${Math.min(w - M.r - 190, x(hover.age) + 10)},${Math.max(M.t, y(hover.value) - 54)})`} className="hover-tag">
-                <rect width={180} height={hoverEvents.length ? 58 : 42} rx={6} />
+                <rect width={180} height={42 + (hoverEvents.length ? 16 : 0) + (hoverAdjusted !== undefined ? 16 : 0)} rx={6} />
                 <text x={10} y={16} className="hover-sub">
                   Age {hover.age} · {hover.year}
                 </text>
                 <text x={10} y={33} className="hover-strong">
                   {money(hover.value)}
                 </text>
+                {hoverAdjusted !== undefined && (
+                  <text x={10} y={50} className="hover-sub adjusted">
+                    Adjusted: {money(hoverAdjusted)}
+                  </text>
+                )}
                 {hoverEvents.length > 0 && (
-                  <text x={10} y={50} className="hover-sub event">
+                  <text x={10} y={hoverAdjusted !== undefined ? 66 : 50} className="hover-sub event">
                     {hoverEvents.join(', ')}
                   </text>
                 )}

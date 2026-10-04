@@ -6,6 +6,7 @@ import { stat, realpath } from "node:fs/promises";
 import { createReadStream } from "node:fs";
 import { chat, extractHousehold, extractEvents, explainAssessment, explainDiff, bedrockConfigured, REGION, MODEL_ID } from "./bedrock.mjs";
 import { synthesize, synthesizeWithVisemes, POLLY_VOICE } from "./voice.mjs";
+import { analyzeEvent, analyzeHealth, analyzeLocation } from "./insights.mjs";
 import { CALCXML_MODE, calculateWithCalcXml } from "./calcxml.mjs";
 import { synthesizeSpeech, transcribeWav, localVoiceStatus } from "./local-voice.mjs";
 
@@ -78,6 +79,29 @@ function profile(value) {
   if (checks.some((v) => v != null && (typeof v !== "number" || !Number.isFinite(v) || v < 0 || v > 1e10))) throw new HttpError(400, "Household amounts and ages must be finite non-negative numbers.");
   return value;
 }
+function amount(value, name, min = 0, max = 1e10, optional = true) {
+  if (optional && (value === undefined || value === null)) return undefined;
+  if (typeof value !== "number" || !Number.isFinite(value) || value < min || value > max) throw new HttpError(400, `${name} must be a number from ${min} to ${max}.`);
+  return value;
+}
+function validateEventInsight(data) {
+  return { text: text(data.text, "Event", 300), age: amount(data.age, "Event age", 0, 100, false), currentAge: amount(data.currentAge, "Current age", 18, 100, false),
+    location: text(data.location, "Location", 120, true), annualIncome: amount(data.annualIncome, "Income"), mortgage: amount(data.mortgage, "Mortgage"),
+    savings: amount(data.savings, "Savings"), children: amount(data.children, "Children", 0, 20), needAtAge: amount(data.needAtAge, "Need") };
+}
+function validateHealthInsight(data) {
+  const m = data.metrics;
+  if (!m || typeof m !== "object" || Array.isArray(m)) throw new HttpError(400, "Provide a health metrics summary.");
+  const metrics = { days: amount(m.days, "Days", 1, 3650, false), avgDailySteps: amount(m.avgDailySteps, "Steps", 0, 100000), restingHeartRate: amount(m.restingHeartRate, "Resting heart rate", 20, 250),
+    sleepHours: amount(m.sleepHours, "Sleep", 0, 24), exerciseMinutes: amount(m.exerciseMinutes, "Exercise", 0, 1440), bmi: amount(m.bmi, "BMI", 8, 100) };
+  if (Object.entries(metrics).every(([k, v]) => k === "days" || v === undefined)) throw new HttpError(400, "The health summary contains no metrics.");
+  return metrics;
+}
+function validateLocationInsight(data) {
+  const lat = amount(data.lat, "Latitude", -90, 90); const lon = amount(data.lon, "Longitude", -180, 180);
+  if (lat !== undefined && lon !== undefined) return { lat, lon };
+  return { query: text(data.query, "Location", 120) };
+}
 function validateCalculation(data) {
   const household = profile(data.household ?? data);
   for (const name of ["spouseAge", "spouseRetAge", "desiredIncome", "term", "beforeTaxReturn", "inflation", "funeral", "finalExpenses", "otherDebts", "collegeNeeds"]) {
@@ -128,7 +152,7 @@ export function createServer(options = {}) {
     }
     globalRate.count++; clientRates.set(client, count + 1);
   }
-  const services = { chat, extractHousehold, extractEvents, explainAssessment, explainDiff, bedrockConfigured, calculateWithCalcXml, synthesize, synthesizeWithVisemes, synthesizeSpeech, transcribeWav, localVoiceStatus, ...options.services };
+  const services = { chat, extractHousehold, extractEvents, explainAssessment, explainDiff, bedrockConfigured, analyzeEvent, analyzeHealth, analyzeLocation, calculateWithCalcXml, synthesize, synthesizeWithVisemes, synthesizeSpeech, transcribeWav, localVoiceStatus, ...options.services };
   const fetchImpl = options.fetch || fetch;
   const localOrigin = options.localOrigin ?? process.env.LINCOLN_LOCAL_ORIGIN ?? "";
   if (localOrigin) {
@@ -260,6 +284,9 @@ export function createServer(options = {}) {
           const events = pathname === "/api/guide" && data.extractEvents === true ? await observe("bedrock", () => services.extractEvents(data.question, { signal })) : [];
           return send(res, 200, pathname === "/api/chat" ? result : { ...result, answer: result.reply, events, provider: "bedrock" });
         }
+        if (pathname === "/api/insights/event") return send(res, 200, await observe("bedrock", () => services.analyzeEvent(validateEventInsight(data), { signal })));
+        if (pathname === "/api/insights/health") return send(res, 200, await observe("bedrock", () => services.analyzeHealth(validateHealthInsight(data), { signal })));
+        if (pathname === "/api/insights/location") return send(res, 200, await observe("bedrock", () => services.analyzeLocation(validateLocationInsight(data), { signal, fetch: fetchImpl })));
         if (pathname === "/api/intake") return send(res, 200, { household: await observe("bedrock", () => services.extractHousehold(text(data.text), { signal })) });
         if (pathname === "/api/events") return send(res, 200, { events: await observe("bedrock", () => services.extractEvents(text(data.text), { signal })) });
         if (pathname === "/api/explain") {

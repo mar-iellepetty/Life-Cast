@@ -3,6 +3,7 @@ import { calculatePlan, eventImpact } from '../lib/calc';
 import { parseEvent } from '../lib/parseEvent';
 import { EVENT_DEFS, ImpactCategory, LifeEvent, Plan, STANDARD_EVENTS, makeEvent, uid } from '../lib/model';
 import { money } from '../lib/format';
+import { estimateEvent } from '../lib/insights';
 import { CHART_DRAG_MIME, ChartDrop, NeedChart } from './NeedChart';
 import { EventIcon, MoneyField, NumberField } from './ui';
 
@@ -24,6 +25,9 @@ export function LifeEventsPage({ plan, focusKey, customKey, onAdd, onUpdate, onR
   const [text, setText] = useState('');
   const [open, setOpen] = useState<string | null>(null);
   const [showCustom, setShowCustom] = useState(false);
+  // Custom events Lincoln is estimating right now, and the ones shown under the chart.
+  const [pending, setPending] = useState<string[]>([]);
+  const [recent, setRecent] = useState<string[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
   const calc = calculatePlan(plan);
   const now = plan.financialInputs.age;
@@ -39,18 +43,35 @@ export function LifeEventsPage({ plan, focusKey, customKey, onAdd, onUpdate, onR
     if (customKey) setShowCustom(true);
   }, [customKey]);
 
-  const addEvent = (ev: LifeEvent) => {
+  /** Ask Lincoln to estimate a custom event's cost, then update the event and the timeline. */
+  const analyze = (ev: LifeEvent, useAiTitle = false) => {
+    setPending((ids) => [...ids, ev.id]);
+    setRecent((ids) => [ev.id, ...ids.filter((id) => id !== ev.id)].slice(0, 3));
+    estimateEvent(plan, ev)
+      .then((est) => onUpdate(ev.id, {
+        ...(useAiTitle ? { title: est.title } : {}),
+        financialImpact: est.amount,
+        category: est.category,
+        years: est.years,
+        ai: { summary: est.summary, status: 'ready' },
+      }))
+      .catch((err) => onUpdate(ev.id, { ai: { summary: err instanceof Error ? err.message : 'Lincoln could not estimate this event.', status: 'error' } }))
+      .finally(() => setPending((ids) => ids.filter((id) => id !== ev.id)));
+  };
+
+  const addEvent = (ev: LifeEvent, options: { estimate?: boolean; aiTitle?: boolean } = {}) => {
     if (atEventLimit) return;
     const placed = { ...ev, age: clampAge(ev.age) };
     onAdd(placed);
     setOpen(placed.id);
+    if (placed.type === 'custom' && options.estimate !== false) analyze(placed, options.aiTitle);
   };
 
   const submitText = (e?: FormEvent) => {
     e?.preventDefault();
     const p = parseEvent(text, now);
     if (!p) return;
-    addEvent(p.event);
+    addEvent(p.event, { aiTitle: true });
     setText('');
   };
 
@@ -68,7 +89,7 @@ export function LifeEventsPage({ plan, focusKey, customKey, onAdd, onUpdate, onR
     }
     const type = STANDARD_EVENTS.find((t) => t === drop.text);
     const ev = type ? makeEvent(type, age) : parseEvent(drop.text, now)?.event;
-    if (ev) addEvent({ ...ev, age });
+    if (ev) addEvent({ ...ev, age }, { aiTitle: true });
   };
 
   // Chart: total need from a little before the earliest event to when the need ends.
@@ -127,13 +148,14 @@ export function LifeEventsPage({ plan, focusKey, customKey, onAdd, onUpdate, onR
           </div>
         </form>
 
-        {showCustom && !atEventLimit && <CustomEventForm defaultAge={now + 2} minAge={calc.startAge} maxAge={calc.endAge} onAdd={(ev) => { addEvent(ev); setShowCustom(false); }} onCancel={() => setShowCustom(false)} />}
+        {showCustom && !atEventLimit && <CustomEventForm defaultAge={now + 2} minAge={calc.startAge} maxAge={calc.endAge} onAdd={(ev, estimate) => { addEvent(ev, { estimate }); setShowCustom(false); }} onCancel={() => setShowCustom(false)} />}
 
         <section className="panel chart-panel">
           <p className="projection-label">Illustrative timeline projection</p>
           <h2 className="chart-title">Your need over time</h2>
           <p className="chart-sub">Drag an event onto any age. Drag a dot left or right to change when it happens.</p>
-          <NeedChart points={points} now={now} height={320} markers={events.map((e) => ({ id: e.id, age: e.age, label: e.title }))} onDrop={onChartDrop} onMarkerClick={(id) => setOpen(id)} />
+          <NeedChart points={points} now={now} height={320} markers={events.map((e) => ({ id: e.id, age: e.age, label: e.title }))} endLabel="Need ends" onDrop={onChartDrop} onMarkerClick={(id) => setOpen(id)} />
+          <EventInsights plan={plan} ids={recent} pending={pending} onOpen={setOpen} onRemove={onRemove} />
         </section>
       </div>
 
@@ -148,6 +170,7 @@ export function LifeEventsPage({ plan, focusKey, customKey, onAdd, onUpdate, onR
             const isOpen = open === e.id;
             return (
               <li key={e.id} className={`ev-item ${isOpen ? 'open' : ''}`} draggable onDragStart={(ev) => dragData(ev, { kind: 'move', id: e.id })}>
+                <div className="ev-row">
                 <button className="ev-summary" onClick={() => setOpen(isOpen ? null : e.id)} aria-expanded={isOpen}>
                   <span className="ev-check" aria-hidden="true">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
@@ -162,6 +185,10 @@ export function LifeEventsPage({ plan, focusKey, customKey, onAdd, onUpdate, onR
                   </span>
                   <span className={`ev-impact ${impact > 0 ? 'up' : ''}`}>{impact === 0 ? 'No change' : `${impact > 0 ? '+' : '−'}${money(Math.abs(impact))}`}</span>
                 </button>
+                <button className="ev-delete" onClick={() => onRemove(e.id)} aria-label={`Delete ${e.title}`} title="Delete event">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg>
+                </button>
+                </div>
                 {isOpen && (
                   <div className="ev-edit fade">
                     {e.isCustom && (
@@ -188,9 +215,17 @@ export function LifeEventsPage({ plan, focusKey, customKey, onAdd, onUpdate, onR
                       </div>
                     )}
                     {e.age < now && <p className="note">Past event: skip it if it is already included in your financial information.</p>}
-                    <button className="btn danger-link" onClick={() => onRemove(e.id)}>
-                      Remove event
-                    </button>
+                    {e.isCustom && e.ai && <p className={`ai-note ${e.ai.status}`}><strong>Lincoln:</strong> {e.ai.summary}</p>}
+                    <div className="ev-edit-actions">
+                      {e.isCustom && (
+                        <button className="btn link" disabled={pending.includes(e.id)} onClick={() => analyze(e)}>
+                          {pending.includes(e.id) ? 'Lincoln is estimating…' : e.ai ? 'Ask Lincoln to estimate again' : 'Ask Lincoln to estimate'}
+                        </button>
+                      )}
+                      <button className="btn danger-link" onClick={() => onRemove(e.id)}>
+                        Remove event
+                      </button>
+                    </div>
                   </div>
                 )}
               </li>
@@ -212,20 +247,21 @@ const CATEGORIES: { value: ImpactCategory; label: string }[] = [
 ];
 
 /** Inline form (not a popup) for an event that is not in the standard list. */
-function CustomEventForm({ defaultAge, minAge, maxAge, onAdd, onCancel }: { defaultAge: number; minAge: number; maxAge: number; onAdd: (e: LifeEvent) => void; onCancel: () => void }) {
+function CustomEventForm({ defaultAge, minAge, maxAge, onAdd, onCancel }: { defaultAge: number; minAge: number; maxAge: number; onAdd: (e: LifeEvent, estimate: boolean) => void; onCancel: () => void }) {
   const [title, setTitle] = useState('');
   const [age, setAge] = useState(defaultAge);
   const [cost, setCost] = useState(25000);
   const [years, setYears] = useState(5);
   const [category, setCategory] = useState<ImpactCategory>('other');
   const [description, setDescription] = useState('');
+  const [estimate, setEstimate] = useState(true);
   const ref = useRef<HTMLInputElement>(null);
   useEffect(() => ref.current?.focus(), []);
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
-    onAdd({ id: uid(), type: 'custom', title: title.trim(), age, financialImpact: cost, description: description.trim(), isCustom: true, category, years });
+    onAdd({ id: uid(), type: 'custom', title: title.trim(), age, financialImpact: estimate ? 0 : cost, description: description.trim(), isCustom: true, category, years }, estimate);
   };
 
   return (
@@ -241,6 +277,14 @@ function CustomEventForm({ defaultAge, minAge, maxAge, onAdd, onCancel }: { defa
           <span>Age</span>
           <NumberField stepper label="Age" value={age} min={minAge} max={maxAge} onChange={setAge} />
         </div>
+        <label className="estimate-toggle span-2">
+          <input type="checkbox" checked={estimate} onChange={(e) => setEstimate(e.target.checked)} />
+          <span>
+            <strong>Let Lincoln estimate the cost</strong>
+            <span className="muted small"> Describe it in your own words, for example "hurricane damage to our house in Florida", and Lincoln will estimate what changes and why.</span>
+          </span>
+        </label>
+        {!estimate && <>
         <div className="mf">
           <span>Total cost</span>
           <MoneyField label="Total cost" value={cost} onChange={setCost} />
@@ -259,6 +303,7 @@ function CustomEventForm({ defaultAge, minAge, maxAge, onAdd, onCancel }: { defa
             ))}
           </div>
         </div>
+        </>}
         <label className="mf span-2">
           <span>Description (optional)</span>
           <input className="text-input" maxLength={2000} placeholder="For example: in-home care for my mother" value={description} onChange={(e) => setDescription(e.target.value.slice(0, 2000))} />
@@ -274,5 +319,47 @@ function CustomEventForm({ defaultAge, minAge, maxAge, onAdd, onCancel }: { defa
         </button>
       </div>
     </form>
+  );
+}
+
+const CATEGORY_LABEL: Record<ImpactCategory, string> = { mortgage: 'Housing', education: 'Education', other: 'Other cost' };
+
+/** "What Lincoln expects" under the timeline for the latest custom events. */
+function EventInsights({ plan, ids, pending, onOpen, onRemove }: { plan: Plan; ids: string[]; pending: string[]; onOpen: (id: string) => void; onRemove: (id: string) => void }) {
+  const shown = ids.map((id) => plan.lifeEvents.find((e) => e.id === id)).filter((e): e is LifeEvent => Boolean(e));
+  if (!shown.length) return null;
+  const calc = calculatePlan(plan);
+  return (
+    <div className="event-insights" aria-live="polite">
+      <p className="event-insights-title">What Lincoln expects</p>
+      {shown.map((e) => {
+        const busy = pending.includes(e.id);
+        return (
+          <div key={e.id} role="button" tabIndex={0} className={`event-insight ${busy ? 'busy' : ''} ${e.ai?.status === 'error' ? 'error' : ''}`} onClick={() => onOpen(e.id)} onKeyDown={(k) => { if (k.key === 'Enter') onOpen(e.id); }}>
+            <span className="event-insight-head">
+              <strong>{e.title}</strong>
+              <span className="muted small">Age {e.age} · {calc.at(e.age).year}</span>
+              <button type="button" className="ev-delete" onClick={(x) => { x.stopPropagation(); onRemove(e.id); }} aria-label={`Delete ${e.title}`} title="Delete event">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg>
+              </button>
+            </span>
+            {busy ? (
+              <span className="event-insight-body">Lincoln is reviewing this event and your timeline…</span>
+            ) : e.ai ? (
+              <>
+                <span className="event-insight-body">{e.ai.summary}</span>
+                {e.ai.status === 'ready' && (
+                  <span className="event-insight-tags">
+                    <span>{e.financialImpact > 0 ? `+${money(e.financialImpact)}` : 'No cost'}</span>
+                    {e.financialImpact > 0 && <span>{CATEGORY_LABEL[e.category ?? 'other']}</span>}
+                    {e.financialImpact > 0 && <span>over {e.years ?? 1} {(e.years ?? 1) === 1 ? 'year' : 'years'}</span>}
+                  </span>
+                )}
+              </>
+            ) : null}
+          </div>
+        );
+      })}
+    </div>
   );
 }

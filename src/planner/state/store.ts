@@ -1,5 +1,5 @@
 import { createDefaultPlans, duplicatePlan, uniqueName } from '../lib/calc';
-import { EVENT_DEFS, FinancialInputs, LifeEvent, Plan, TermLength, uid, isValidPlan } from '../lib/model';
+import { EVENT_DEFS, FinancialInputs, LifeEvent, Plan, TermLength, uid, isValidPlan, Adjustment, PlanAdjustments } from '../lib/model';
 
 export interface PlanningState {
   plans: Plan[];
@@ -13,6 +13,7 @@ export type Action =
   | { type: 'setInputs'; patch: Partial<FinancialInputs> }
   | { type: 'addEvent'; event: LifeEvent }
   | { type: 'updateEvent'; id: string; patch: Partial<LifeEvent> }
+  | { type: 'setAdjustment'; key: keyof PlanAdjustments; value: Adjustment | null }
   | { type: 'removeEvent'; id: string }
   | { type: 'setTermYears'; years: TermLength }
   | { type: 'dismissTerm'; start: number }
@@ -60,6 +61,13 @@ export function reducer(s: PlanningState, a: Action): PlanningState {
       });
     case 'updateEvent':
       return updateActive(s, (p) => ({ ...p, lifeEvents: p.lifeEvents.map((e) => (e.id === a.id ? { ...e, ...a.patch } : e)) }));
+    case 'setAdjustment':
+      return updateActive(s, (p) => {
+        const adjustments = { ...p.adjustments };
+        if (a.value) adjustments[a.key] = a.value;
+        else delete adjustments[a.key];
+        return { ...p, adjustments };
+      });
     case 'removeEvent':
       return updateActive(s, (p) => ({ ...p, lifeEvents: p.lifeEvents.filter((e) => e.id !== a.id) }));
     case 'setTermYears':

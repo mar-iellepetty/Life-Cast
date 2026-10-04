@@ -796,3 +796,152 @@
   .planner-workspace .modal-foot { padding:14px 18px; }
   .planner-workspace .modal-foot .btn { flex:1; min-width:120px; white-space:normal; text-align:center; }
 }
+
+/* ---------- Income and age sliders ---------- */
+.planner-workspace .planning-main { display: flex; flex-direction: column; gap: 24px; min-width: 0; }
+.planner-workspace .plan-sliders { display: grid; grid-template-columns: 1fr 1fr auto; gap: 24px; align-items: end; padding: 16px 18px; margin: 4px 0 18px; background: #fdf9f6; border: 1px solid var(--border); border-radius: var(--radius); }
+.planner-workspace .slider-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.planner-workspace .slider-head { display: flex; justify-content: space-between; align-items: baseline; font-size: 0.85rem; font-weight: 600; color: var(--ink); }
+.planner-workspace .slider-head strong { font-size: 1.1rem; color: var(--maroon); font-variant-numeric: tabular-nums; }
+.planner-workspace .slider-field input[type='range'] { width: 100%; accent-color: var(--maroon); height: 24px; cursor: pointer; }
+.planner-workspace .slider-scale { display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--muted); }
+.planner-workspace .slider-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.planner-workspace .slider-hint { font-size: 0.8rem; color: var(--muted); margin: 0; white-space: nowrap; }
+
+/* ---------- Adjusted timeline line ---------- */
+.planner-workspace .nc-adjusted { fill: none; stroke: var(--maroon); stroke-width: 2; stroke-dasharray: 6 5; opacity: 0.75; }
+.planner-workspace .nc-adjusted-label { font-size: 12px; font-weight: 700; fill: var(--maroon); }
+.planner-workspace .hover-sub.adjusted { fill: var(--maroon); }
+.planner-workspace .adjusted-note { font-size: 0.85rem; color: var(--muted); margin: 10px 0 0; }
+
+/* ---------- Apple Health and location cards ---------- */
+.planner-workspace .insight-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: start; }
+.planner-workspace .insight-card { padding: 22px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.planner-workspace .insight-head { display: flex; gap: 12px; align-items: center; }
+.planner-workspace .insight-icon { width: 40px; height: 40px; border-radius: 10px; display: grid; place-items: center; flex: none; }
+.planner-workspace .insight-icon.health { background: #fdecef; color: #d6365a; }
+.planner-workspace .insight-icon.location { background: var(--maroon-tint); color: var(--maroon); }
+.planner-workspace .insight-title { font-size: 1.1rem; font-weight: 700; margin: 0; }
+.planner-workspace .insight-sub { font-size: 0.85rem; color: var(--muted); margin: 0; }
+.planner-workspace .insight-body { font-size: 0.92rem; color: var(--ink); margin: 0; }
+.planner-workspace .insight-note { font-size: 0.78rem; color: var(--muted); margin: 0; line-height: 1.45; }
+.planner-workspace .insight-note a { color: var(--maroon); font-weight: 600; }
+.planner-workspace .insight-actions { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; }
+.planner-workspace .insight-status { font-size: 0.85rem; color: var(--maroon); font-weight: 600; margin: 0; }
+.planner-workspace .insight-error { font-size: 0.85rem; color: #9b1c1c; margin: 0; }
+.planner-workspace .insight-effect { display: flex; gap: 14px; align-items: flex-start; padding: 12px 14px; background: #fff; border: 1px solid var(--border); border-radius: var(--radius); }
+.planner-workspace .insight-percent { font-size: 1.4rem; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--ink); min-width: 60px; }
+.planner-workspace .insight-percent.up { color: var(--maroon); }
+.planner-workspace .insight-percent.down { color: #2f6b3a; }
+.planner-workspace .insight-headline { font-weight: 600; margin: 0 0 4px; }
+.planner-workspace .insight-reasons { margin: 0; padding-left: 18px; font-size: 0.85rem; color: var(--muted); }
+.planner-workspace .insight-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; margin: 0; }
+.planner-workspace .insight-metrics div { background: var(--past); border-radius: 6px; padding: 8px 10px; }
+.planner-workspace .insight-metrics dt { font-size: 0.72rem; color: var(--muted); }
+.planner-workspace .insight-metrics dd { margin: 0; font-weight: 700; font-variant-numeric: tabular-nums; }
+.planner-workspace .location-form { display: flex; gap: 8px; }
+.planner-workspace .location-form .text-input { flex: 1; min-width: 0; }
+.planner-workspace .insight-place { margin: 0; font-size: 0.92rem; }
+.planner-workspace .hazard-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.planner-workspace .hazard-list li { display: flex; justify-content: space-between; gap: 8px; font-size: 0.88rem; padding: 4px 0; border-bottom: 1px dashed var(--border); }
+.planner-workspace .hazard-rating { font-weight: 700; font-size: 0.78rem; padding: 2px 8px; border-radius: 999px; background: var(--past); color: var(--ink); white-space: nowrap; }
+.planner-workspace .hazard-rating.r-very-high { background: var(--maroon); color: #fff; }
+.planner-workspace .hazard-rating.r-relatively-high { background: #e9c6bd; color: var(--maroon-hover); }
+.planner-workspace .hazard-rating.r-relatively-moderate { background: #f3e2c7; }
+
+/* ---------- Life events: what Lincoln expects ---------- */
+.planner-workspace .event-insights { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 8px; }
+.planner-workspace .event-insights-title { font-size: 0.78rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--maroon); margin: 0; }
+.planner-workspace .event-insight { text-align: left; display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; border: 1px solid var(--maroon-line); background: var(--maroon-tint); border-radius: var(--radius); cursor: pointer; font: inherit; color: inherit; }
+.planner-workspace .event-insight:hover { border-color: var(--maroon); }
+.planner-workspace .event-insight.busy { background: #fff; border-style: dashed; }
+.planner-workspace .event-insight.error { background: #fff; border-color: var(--border); }
+.planner-workspace .event-insight-head { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.planner-workspace .event-insight-body { font-size: 0.92rem; line-height: 1.45; }
+.planner-workspace .event-insight-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.planner-workspace .event-insight-tags span { font-size: 0.78rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: #fff; border: 1px solid var(--maroon-line); color: var(--maroon); }
+.planner-workspace .ai-note { font-size: 0.86rem; margin: 0; padding: 8px 10px; border-radius: 6px; background: var(--maroon-tint); line-height: 1.45; }
+.planner-workspace .ai-note.error { background: var(--past); color: var(--muted); }
+.planner-workspace .ev-edit-actions { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px; align-items: center; }
+.planner-workspace .estimate-toggle { display: flex; gap: 10px; align-items: flex-start; padding: 12px; border: 1px solid var(--maroon-line); background: var(--maroon-tint); border-radius: var(--radius); cursor: pointer; }
+.planner-workspace .estimate-toggle input { margin-top: 3px; accent-color: var(--maroon); }
+.planner-workspace .dock-text { flex: 1; min-width: 220px; height: 52px; font-size: 1.05rem; }
+
+@media (max-width: 980px) {
+  .planner-workspace .plan-sliders { grid-template-columns: 1fr; }
+  .planner-workspace .slider-actions { align-items: flex-start; }
+  .planner-workspace .insight-cards { grid-template-columns: minmax(0, 1fr); }
+}
+
+.planner-workspace .location-result { display: flex; align-items: center; gap: 12px; padding: 10px 12px; background: #fff; border: 1px solid var(--border); border-radius: var(--radius); }
+.planner-workspace .location-result p { margin: 0; flex: 1; font-size: 0.92rem; }
+.planner-workspace .location-result a { color: var(--maroon); font-weight: 600; }
+.planner-workspace .location-result .insight-percent { min-width: 0; font-size: 1.15rem; }
+
+/* Event checkpoints: quick delete and chart labels */
+.planner-workspace .ev-row { display: flex; align-items: center; }
+.planner-workspace .ev-row .ev-summary { flex: 1; min-width: 0; }
+.planner-workspace .ev-delete { flex: none; width: 30px; height: 30px; margin-right: 8px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); display: grid; place-items: center; cursor: pointer; }
+.planner-workspace .ev-delete:hover { background: #fbe9e9; color: #9b1c1c; }
+.planner-workspace .event-insight-head .ev-delete { margin: -4px -6px -4px auto; }
+.planner-workspace .event-insight-head { align-items: center; }
+.planner-workspace .nc-marker-label { font-size: 11.5px; font-weight: 700; fill: var(--maroon); paint-order: stroke; stroke: #fff; stroke-width: 3px; }
+.planner-workspace .nc-marker-label.past { fill: var(--muted); }
+.planner-workspace .nc-label-stem { stroke: var(--maroon-line); stroke-width: 1; }
+
+/* ---------- Review: suggestion, pros and cons, national comparison ---------- */
+.planner-workspace .term-pick { padding: 28px 30px; margin: 24px 0; border-top: 4px solid var(--maroon); display: flex; flex-direction: column; gap: 10px; }
+.planner-workspace .term-pick-title { font-size: 1.7rem; font-weight: 600; line-height: 1.25; margin: 2px 0 0; color: var(--ink); }
+.planner-workspace .term-pick-title strong { color: var(--maroon); font-weight: 800; }
+.planner-workspace .term-pick-sub { margin: 0; color: var(--muted); }
+.planner-workspace .term-pick-why { margin: 4px 0 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; color: var(--ink); }
+
+.planner-workspace .pros-cons { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px; }
+.planner-workspace .pc-card { padding: 26px; display: flex; flex-direction: column; gap: 8px; }
+.planner-workspace .pc-card.lean { border-color: var(--maroon); box-shadow: inset 0 4px 0 var(--maroon); }
+.planner-workspace .pc-title { font-size: 1.3rem; font-weight: 700; margin: 0 0 4px; }
+.planner-workspace .pc-card ul { margin: 0 0 6px; padding-left: 20px; display: flex; flex-direction: column; gap: 5px; color: var(--ink); }
+.planner-workspace .pc-label { margin: 6px 0 0; font-size: 0.75rem; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; }
+.planner-workspace .pc-label.pro { color: #2f6b3a; }
+.planner-workspace .pc-label.con { color: #9b1c1c; }
+.planner-workspace .pc-card .source-link { margin-top: auto; padding-top: 8px; }
+
+.planner-workspace .national { padding: 28px 30px; display: flex; flex-direction: column; gap: 14px; margin-bottom: 24px; }
+.planner-workspace .national-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 20px; flex-wrap: wrap; }
+.planner-workspace .national-head .section-heading { margin: 4px 0; }
+.planner-workspace .national-table { display: flex; flex-direction: column; }
+.planner-workspace .nt-row { display: grid; grid-template-columns: minmax(180px, 1.4fr) 130px 150px minmax(180px, 1.6fr); gap: 16px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--border); }
+.planner-workspace .nt-head { font-size: 0.75rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); padding-top: 0; }
+.planner-workspace .nt-row strong { display: block; }
+.planner-workspace .nt-note { display: block; font-size: 0.78rem; color: var(--muted); }
+.planner-workspace .nt-num { font-weight: 700; font-variant-numeric: tabular-nums; }
+.planner-workspace .nt-bars { display: grid; grid-template-columns: 1fr auto; grid-template-rows: auto auto; column-gap: 12px; row-gap: 4px; align-items: center; }
+.planner-workspace .nt-bar { height: 8px; border-radius: 4px; grid-column: 1; min-width: 2px; }
+.planner-workspace .nt-bar.you { background: var(--maroon); }
+.planner-workspace .nt-bar.them { background: var(--border-strong); }
+.planner-workspace .nt-diff { grid-column: 2; grid-row: 1 / span 2; font-size: 0.82rem; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--muted); white-space: nowrap; }
+.planner-workspace .nt-diff.up { color: var(--maroon); }
+.planner-workspace .nt-diff.down { color: #2f6b3a; }
+.planner-workspace .national .btn.link { align-self: flex-start; }
+
+@media (max-width: 980px) {
+  .planner-workspace .pros-cons { grid-template-columns: minmax(0, 1fr); }
+  .planner-workspace .nt-row { grid-template-columns: 1fr 1fr; }
+  .planner-workspace .nt-bars { grid-column: 1 / -1; }
+  .planner-workspace .nt-head span:last-child { display: none; }
+}
+
+/* Insurance standing meters */
+.planner-workspace .standing { display: flex; flex-direction: column; gap: 12px; padding: 18px 20px; background: #fdf9f6; border: 1px solid var(--border); border-radius: var(--radius); }
+.planner-workspace .standing .sub-heading { margin: 0; }
+.planner-workspace .standing-summary { margin: 0 0 4px; color: var(--ink); line-height: 1.5; }
+.planner-workspace .standing-summary strong { color: var(--maroon); }
+.planner-workspace .standing-row { display: grid; grid-template-columns: minmax(200px, 1.2fr) minmax(160px, 2fr) minmax(170px, 1fr); gap: 16px; align-items: center; }
+.planner-workspace .standing-label strong, .planner-workspace .standing-numbers strong { display: block; }
+.planner-workspace .standing-label span, .planner-workspace .standing-numbers span { display: block; font-size: 0.78rem; color: var(--muted); }
+.planner-workspace .standing-meter { height: 12px; border-radius: 6px; background: var(--border); overflow: hidden; }
+.planner-workspace .standing-meter span { display: block; height: 100%; border-radius: 6px; background: var(--border-strong); transition: width 300ms ease-out; }
+.planner-workspace .standing-row.you .standing-meter span { background: var(--maroon); }
+.planner-workspace .standing-row.plan .standing-meter span { background: #2f6b3a; }
+.planner-workspace .standing-numbers { font-variant-numeric: tabular-nums; }
+@media (max-width: 980px) { .planner-workspace .standing-row { grid-template-columns: 1fr; gap: 6px; } }

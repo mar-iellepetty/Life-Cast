@@ -1,0 +1,115 @@
+.lincoln-site-header { height: 68px; }
+.lincoln-site-header > div { height: 100%; }
+.lincoln-sequence { position: relative; height: 400svh; background: #181b18; color: #f8f4e9; }
+.lincoln-sequence__stage { position: sticky; top: 68px; height: calc(100svh - 68px); min-height: 580px; overflow: clip; isolation: isolate; }
+.lincoln-sequence__photographs { position: absolute; inset: 0 0 0 24%; overflow: hidden; }
+.lincoln-sequence__photo { position: absolute; width: 100%; height: 100%; inset: 0; object-fit: cover; object-position: 50% 19%; will-change: transform, opacity; transform-origin: 55% 45%; }
+.lincoln-sequence__photo--1 { opacity: 1; }
+.lincoln-sequence__photo--2, .lincoln-sequence__photo--3, .lincoln-sequence__photo--4 { opacity: 0; }
+.lincoln-sequence__scrim { position: absolute; inset: 0; background: linear-gradient(90deg, #181b18 0%, rgba(24,27,24,.97) 18%, rgba(24,27,24,.82) 32%, rgba(24,27,24,.32) 52%, rgba(24,27,24,.035) 75%), linear-gradient(0deg, rgba(17,20,17,.72), transparent 30%, transparent 80%, rgba(17,20,17,.12)); }
+.lincoln-sequence__atmosphere { position: absolute; inset: -20%; background: radial-gradient(ellipse at 75% 20%, rgba(253,222,160,.085), transparent 43%); mix-blend-mode: screen; pointer-events: none; }
+.lincoln-sequence__content { position: relative; z-index: 2; height: calc(100% - 98px); width: min(1440px, 100%); margin: auto; padding: 48px 6%; display: flex; align-items: center; }
+.lincoln-sequence__editorial { width: 50%; max-width: 600px; }
+.lincoln-sequence__eyebrow { display: flex; align-items: center; gap: 12px; font-size: 10px; letter-spacing: .23em; text-transform: uppercase; color: #dcc49b; font-weight: 500; margin: 0 0 26px; }
+.lincoln-sequence__eyebrow > span { height: 1px; width: 30px; background: #cda773; }
+.lincoln-sequence__editorial h1 { font-family: var(--font-display); font-size: clamp(40px, 4.45vw, 68px); line-height: 1.04; letter-spacing: -.045em; font-weight: 400; text-wrap: balance; margin: 0 0 24px; color: #f8f4e9; }
+.lincoln-sequence__intro { font-size: clamp(13px, 1.13vw, 16px); color: #d1d0c6; line-height: 1.8; max-width: 440px; margin: 0; }
+.lincoln-sequence__actions { display: flex; align-items: center; gap: 28px; margin-top: 28px; }
+.lincoln-sequence__primary, .lincoln-sequence__secondary { display: inline-flex; align-items: center; justify-content: center; gap: 12px; font-size: 13px; }
+.lincoln-sequence__primary { padding: 15px 20px; background: #d5ab77; color: #20251f; border: 1px solid #d5ab77; border-radius: 3px; font-weight: 600; transition: background .2s; }
+.lincoln-sequence__primary:hover { background: #e5c292; }
+.lincoln-sequence__secondary { color: #f0e9da; padding: 12px 0; border-bottom: 1px solid #b5b4a74a; white-space: nowrap; transition: border-color .2s; }
+.lincoln-sequence__secondary:hover { border-color: #d5ab77; }
+.lincoln-sequence__assurance { display: flex; align-items: center; gap: 8px; font-size: 10px; color: #aaaFA3; margin-top: 20px; }
+.lincoln-sequence__assurance svg { flex-shrink: 0; color: #bdc8af; }
+.lincoln-sequence__guide.guide-invitation { margin-top: 30px; padding-top: 20px; max-width: 400px; border-color: #d5cfb92e; color: #f2eadc; }
+.lincoln-sequence__guide.guide-invitation img { width: 39px; height: 39px; object-position: 50% 29%; border: 1px solid #d8b48675; }
+.lincoln-sequence__guide.guide-invitation strong { font-size: 12px; font-weight: 500; }
+.lincoln-sequence__guide.guide-invitation small { font-size: 10px; color: #aeb1a7; }
+.lincoln-sequence__play { margin-left: auto; width: 30px; height: 30px; border: 1px solid #d6c9b458; border-radius: 50%; display: grid; place-items: center; color: #dfc6a0; }
+.lincoln-sequence__footer { position: absolute; z-index: 3; bottom: 30px; left: 6%; right: 6%; display: flex; align-items: flex-end; justify-content: space-between; gap: 30px; }
+.lincoln-sequence__scroll { display: flex; align-items: center; gap: 12px; font-size: 9px; letter-spacing: .15em; text-transform: uppercase; color: #c8cabe; padding-bottom: 4px; }
+.lincoln-sequence__scroll > svg { color: #d8b986; }
+.lincoln-sequence__views { display: flex; width: min(460px, 44%); gap: 22px; }
+.lincoln-sequence__views button { position: relative; display: grid; grid-template-columns: auto 1fr; gap: 10px; flex: 1; text-align: left; padding: 12px 0; color: #e9e9df8c; transition: color .2s; }
+.lincoln-sequence__views button:hover, .lincoln-sequence__views button.is-active { color: #fff9ed; }
+.lincoln-sequence__view-number { font-size: 10px; font-variant-numeric: tabular-nums; }
+.lincoln-sequence__view-name { font-size: 10px; letter-spacing: .02em; white-space: nowrap; }
+.lincoln-sequence__view-line { position: absolute; bottom: 0; left: 0; right: 0; height: 1px; background: #ddd9cc45; }
+.lincoln-sequence__views button.is-active .lincoln-sequence__view-line { height: 2px; background: #d9b887; }
+.lincoln-sequence__progress { position: absolute; bottom: 0; left: 0; width: 100%; height: 2px; background: #d4b17c15; }
+.lincoln-sequence__progress > div { height: 100%; background: #d5ab77; transform-origin: left; }
+.lincoln-sequence--still { height: auto; }
+.lincoln-sequence--still .lincoln-sequence__stage { position: relative; top: auto; }
+.lincoln-sequence--still .lincoln-sequence__photo { will-change: auto; }
+.lincoln-portrait { position: relative; height: 510px; background: #1c211f; border-radius: 3px; overflow: hidden; }
+.lincoln-portrait > img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 32%; }
+.lincoln-portrait::after { content: ''; position: absolute; inset: 55% 0 0; background: linear-gradient(0deg, #111813d9, transparent); pointer-events: none; }
+.lincoln-portrait__caption { position: absolute; z-index: 1; bottom: 24px; left: 26px; right: 26px; display: flex; justify-content: space-between; align-items: center; color: #e8e6dc; }
+.lincoln-portrait__caption > span { font-size: 10px; text-transform: uppercase; letter-spacing: .15em; }
+.lincoln-portrait__caption button { display: flex; align-items: center; gap: 7px; font-size: 11px; padding: 8px 13px; border: 1px solid #e4ded954; border-radius: 30px; background: #ffffff0e; }
+.lincoln-portrait__caption button:hover { background: #ffffff25; }
+#how, #approach { scroll-margin-top: 90px; }
+
+@media (min-width: 1600px) {
+  .lincoln-sequence__content { padding-left: 24px; padding-right: 24px; }
+  .lincoln-sequence__footer { left: max(6%, calc((100vw - 1392px) / 2)); right: max(6%, calc((100vw - 1392px) / 2)); }
+}
+@media (max-width: 1024px) {
+  .lincoln-sequence__editorial { width: 55%; }
+  .lincoln-sequence__content { padding: 40px 5%; }
+  .lincoln-sequence__editorial h1 { font-size: 48px; }
+  .lincoln-sequence__photographs { left: 20%; }
+  .lincoln-sequence__scrim { background: linear-gradient(90deg, #181b18 0%, #181b18ea 23%, #181b189c 45%, #181b1815 85%), linear-gradient(0deg, #111411b8, transparent 30%); }
+  .lincoln-sequence__footer { left: 5%; right: 5%; }
+  .lincoln-sequence__view-name { display: none; }
+  .lincoln-sequence__views { max-width: 220px; }
+  .lincoln-sequence__actions { gap: 20px; }
+  .lincoln-sequence__primary, .lincoln-sequence__secondary { font-size: 12px; }
+}
+@media (max-width: 700px) {
+  .lincoln-sequence { height: 370svh; }
+  .lincoln-sequence__stage { min-height: 620px; }
+  .lincoln-sequence__photographs { inset: 0; }
+  .lincoln-sequence__photo { object-position: 58% 15%; }
+  .lincoln-sequence__scrim { background: linear-gradient(0deg, #151a16 0%, #151a16f7 22%, #151a16a8 51%, #151a1638 80%, #151a1629), linear-gradient(90deg, #151a1645, transparent); }
+  .lincoln-sequence__content { height: calc(100% - 83px); padding: 30px 24px 0; align-items: flex-end; }
+  .lincoln-sequence__editorial { width: 100%; max-width: 480px; }
+  .lincoln-sequence__eyebrow { margin-bottom: 16px; font-size: 8px; letter-spacing: .18em; }
+  .lincoln-sequence__eyebrow > span { width: 22px; }
+  .lincoln-sequence__editorial h1 { font-size: clamp(34px, 8.7vw, 51px); line-height: 1.05; max-width: 430px; margin-bottom: 18px; text-wrap: pretty; }
+  .lincoln-sequence__intro { max-width: 400px; font-size: 12px; line-height: 1.7; }
+  .lincoln-sequence__actions { margin-top: 22px; gap: 24px; }
+  .lincoln-sequence__primary { padding: 13px 15px; gap: 7px; }
+  .lincoln-sequence__secondary { font-size: 11px; gap: 6px; }
+  .lincoln-sequence__assurance { font-size: 9px; margin-top: 15px; }
+  .lincoln-sequence__guide.guide-invitation { display: none; }
+  .lincoln-sequence__footer { left: 24px; right: 24px; bottom: 23px; gap: 15px; }
+  .lincoln-sequence__scroll { font-size: 7px; letter-spacing: .1em; max-width: 190px; gap: 8px; line-height: 1.6; }
+  .lincoln-sequence__scroll svg { flex-shrink: 0; }
+  .lincoln-sequence__views { gap: 12px; width: 125px; flex-shrink: 0; }
+  .lincoln-sequence__views button { padding: 10px 0; }
+  .lincoln-sequence__view-number { font-size: 9px; }
+  .lincoln-sequence--still { height: auto; }
+  .lincoln-portrait { height: 430px; order: -1; }
+}
+@media (min-width: 701px) and (max-height: 820px) {
+  .lincoln-sequence__content { padding-top: 30px; padding-bottom: 16px; height: calc(100% - 77px); }
+  .lincoln-sequence__editorial h1 { font-size: clamp(38px, 4vw, 56px); margin-bottom: 18px; max-width: 520px; }
+  .lincoln-sequence__eyebrow { margin-bottom: 18px; }
+  .lincoln-sequence__intro { font-size: 13px; line-height: 1.7; }
+  .lincoln-sequence__actions { margin-top: 20px; }
+  .lincoln-sequence__assurance { margin-top: 15px; }
+  .lincoln-sequence__guide.guide-invitation { margin-top: 20px; padding-top: 15px; }
+  .lincoln-sequence__footer { bottom: 22px; }
+}
+@media (max-height: 640px) and (min-width: 701px) {
+  .lincoln-sequence__stage { min-height: 480px; }
+  .lincoln-sequence__editorial h1 { font-size: 39px; }
+  .lincoln-sequence__guide.guide-invitation { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lincoln-sequence { height: auto; }
+  .lincoln-sequence__stage { position: relative; top: auto; }
+  .lincoln-sequence__photo { will-change: auto; }
+}

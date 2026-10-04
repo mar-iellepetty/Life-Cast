@@ -1,0 +1,12 @@
+Planning workspace source: https://github.com/mar-iellepetty/Life-Cast
+Planning workspace base revision: 88a817eb7e7ab6871fa4fcfa0c752fe363fca59d
+
+The original planning UI is adapted in src/planner, with static images in public/planner-images.
+The integration adds the existing LifeCast landing page, Node backend, and colored animated Lincoln GLB supplied in the user's local LifeCast project.
+Routes: landing at /; integrated workspace at /studio; previous studio at /classic-studio.
+
+Adaptations include live Bedrock chat, a shared avatar conversation, paired Polly audio and mouth cues, CalcXML assessments, the Report tab, validated local browser saving, scoped styling, and removal of synthetic premium quotes.
+No AWS credentials, local model binaries, development-machine paths, or private account records are included.
+
+No LICENSE file was present in the referenced Life-Cast base revision; this integration does not assign a new license to that upstream source.
+Optional Whisper component license notices are retained in local-voice/LICENSE-whisper-cpp.txt and local-voice/LICENSE-whisper-model.txt.

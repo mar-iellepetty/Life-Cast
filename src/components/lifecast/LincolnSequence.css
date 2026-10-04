@@ -47,8 +47,8 @@
 .lincoln-portrait::after { content: ''; position: absolute; inset: 55% 0 0; background: linear-gradient(0deg, #111813d9, transparent); pointer-events: none; }
 .lincoln-portrait__caption { position: absolute; z-index: 1; bottom: 24px; left: 26px; right: 26px; display: flex; justify-content: space-between; align-items: center; color: #e8e6dc; }
 .lincoln-portrait__caption > span { font-size: 10px; text-transform: uppercase; letter-spacing: .15em; }
-.lincoln-portrait__caption button { display: flex; align-items: center; gap: 7px; font-size: 11px; padding: 8px 13px; border: 1px solid #e4ded954; border-radius: 30px; background: #ffffff0e; }
-.lincoln-portrait__caption button:hover { background: #ffffff25; }
+.lincoln-portrait__caption a { display: flex; align-items: center; gap: 7px; font-size: 11px; padding: 8px 13px; border: 1px solid #e4ded954; border-radius: 30px; background: #ffffff0e; }
+.lincoln-portrait__caption a:hover { background: #ffffff25; }
 #how, #approach { scroll-margin-top: 90px; }
 
 @media (min-width: 1600px) {

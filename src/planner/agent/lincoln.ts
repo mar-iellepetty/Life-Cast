@@ -8,29 +8,58 @@ export interface GuideMessage { id: number; from: 'lincoln' | 'user'; text: stri
 interface Snapshot { messages: GuideMessage[]; busy: boolean; error: string; lastQuestion: string }
 interface Conversation { snapshot: Snapshot; listeners: Set<() => void>; controller: AbortController | null; generation: number; nextId: number; planFingerprint?: string }
 const conversations = new Map<string, Conversation>();
+const MAX_CONVERSATIONS = 40, MAX_MESSAGES = 60, MAX_TRANSCRIPT_CHARACTERS = 60000;
 const keyFor = (plan?: Plan | null) => plan?.id || '__intake__';
-function conversationFor(plan?: Plan | null) {
-  const key = keyFor(plan);
-  if (!conversations.has(key)) conversations.set(key, {
-    snapshot: { messages: [{ id: 0, from: 'lincoln', text: greeting(plan), introduction: true }], busy: false, error: '', lastQuestion: '' },
-    listeners: new Set(), controller: null, generation: 0, nextId: 1,
-  });
-  return conversations.get(key)!;
+function boundedMessages(messages: GuideMessage[]) {
+  const recent = messages.slice(-MAX_MESSAGES);
+  let characters = recent.reduce((total, message) => total + message.text.length, 0);
+  while (recent.length > 1 && characters > MAX_TRANSCRIPT_CHARACTERS) characters -= recent.shift()!.text.length;
+  return recent;
 }
-function update(conversation: Conversation, patch: Partial<Snapshot>) {
-  conversation.snapshot = { ...conversation.snapshot, ...patch };
-  conversation.listeners.forEach(listener => listener());
-}
-export function cancelPlannerGuide(plan?: Plan | null) {
-  const conversation = conversationFor(plan);
+function cancelConversation(conversation: Conversation) {
   conversation.generation++; conversation.controller?.abort(); conversation.controller = null;
   if (conversation.snapshot.busy) update(conversation, { busy: false, error: '' });
 }
+function conversationFor(plan?: Plan | null) {
+  const key = keyFor(plan);
+  if (!conversations.has(key)) {
+    for (const [oldKey, old] of conversations) {
+      if (conversations.size < MAX_CONVERSATIONS) break;
+      if (old.listeners.size === 0) { cancelConversation(old); conversations.delete(oldKey); }
+    }
+    conversations.set(key, {
+    snapshot: { messages: [{ id: 0, from: 'lincoln', text: greeting(plan), introduction: true }], busy: false, error: '', lastQuestion: '' },
+    listeners: new Set(), controller: null, generation: 0, nextId: 1,
+    });
+  }
+  return conversations.get(key)!;
+}
+function update(conversation: Conversation, patch: Partial<Snapshot>) {
+  conversation.snapshot = { ...conversation.snapshot, ...patch, ...(patch.messages ? { messages: boundedMessages(patch.messages) } : {}) };
+  conversation.listeners.forEach(listener => listener());
+}
+export function cancelPlannerGuide(plan?: Plan | null) {
+  const conversation = conversations.get(keyFor(plan));
+  if (conversation) cancelConversation(conversation);
+}
 
-/** Chat panel and 3D avatar share this plan-specific Bedrock history. */
+/** Delete/reset is also a boundary for private, unsaved conversation state. */
+export function forgetPlannerGuide(planId?: string) {
+  const key = planId || '__intake__', conversation = conversations.get(key);
+  if (!conversation) return;
+  cancelConversation(conversation);
+  update(conversation, { messages: [], error: '', lastQuestion: '' });
+  conversations.delete(key);
+}
+export function clearPlannerGuides() {
+  for (const key of [...conversations.keys()]) forgetPlannerGuide(key);
+}
+
+/** Plan-specific Bedrock history, retained only for the current workspace. */
 export async function askPlannerGuide(plan: Plan | null | undefined, question: string, options: { signal?: AbortSignal } = {}): Promise<string> {
   const text = question.trim();
   if (!text) throw new Error('Enter a question for Lincoln.');
+  if (text.length > 4000) throw new Error('Keep your question under 4,000 characters.');
   const conversation = conversationFor(plan);
   if (conversation.snapshot.busy) throw new Error('Lincoln is still answering. Cancel the current request or wait for the reply.');
   const controller = new AbortController(), generation = ++conversation.generation;
@@ -52,6 +81,7 @@ export async function askPlannerGuide(plan: Plan | null | undefined, question: s
     if (signal.aborted || generation !== conversation.generation) throw new DOMException('Cancelled', 'AbortError');
     const answer = result.answer || result.reply;
     if (typeof answer !== 'string' || !answer.trim()) throw new Error('Lincoln received no answer from Bedrock. Please try again.');
+    if (answer.length > MAX_TRANSCRIPT_CHARACTERS) throw new Error('Lincoln returned an unusually long response. Please try a shorter question.');
     update(conversation, { messages: [...pending, { id: conversation.nextId++, from: 'lincoln', text: answer.trim() }], busy: false, error: '' });
     return answer.trim();
   } catch (error) {
@@ -67,10 +97,10 @@ export function usePlannerGuide(plan?: Plan | null) {
     conversation.listeners.add(listener);
     return () => {
       conversation.listeners.delete(listener);
-      // Header and chat share this store. Removing one view must not stop the other.
-      setTimeout(() => { if (conversation.listeners.size === 0) cancelPlannerGuide(plan); }, 0);
+      // StrictMode can unsubscribe and immediately subscribe again.
+      setTimeout(() => { if (conversation.listeners.size === 0) cancelConversation(conversation); }, 0);
     };
-  }, [conversation, plan]);
+  }, [conversation]);
   const getSnapshot = useCallback(() => conversation.snapshot, [conversation]);
   const snapshot = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
   useEffect(() => {

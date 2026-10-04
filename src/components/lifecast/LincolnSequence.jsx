@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, useMotionValueEvent, useReducedMotion, useScroll, useTransform } from 'framer-motion';
-import { ArrowDown, ArrowRight, Play, ShieldCheck } from 'lucide-react';
+import { ArrowDown, ArrowRight, ShieldCheck } from 'lucide-react';
 import './LincolnSequence.css';
 
 const VIEWS = [
@@ -14,7 +14,7 @@ const VIEWS = [
 // Every photograph lives in this one pinned scene. The overlapping opacity
 // ramps and independent transforms make the complete sequence scrub in both
 // directions with the user's scroll, rather than running a timed slideshow.
-export default function LincolnSequence({ onOpenAvatar }) {
+export default function LincolnSequence() {
   const sequenceRef = useRef(null);
   const reducedMotion = useReducedMotion();
   const [activeView, setActiveView] = useState(0);
@@ -96,11 +96,11 @@ export default function LincolnSequence({ onOpenAvatar }) {
               <a href="#how" className="lincoln-sequence__secondary">How it works <ArrowDown size={15} /></a>
             </div>
             <p className="lincoln-sequence__assurance"><ShieldCheck size={15} /> Every number explainable. Every future personal.</p>
-            <button className="guide-invitation lincoln-sequence__guide" onClick={onOpenAvatar}>
+            <Link to="/studio" className="guide-invitation lincoln-sequence__guide">
               <img src="/assets/lincoln-realistic.png" alt="" />
-              <span><strong>Meet your guide, Lincoln</strong><small>A conversation about what comes next</small></span>
-              <span className="lincoln-sequence__play"><Play size={12} fill="currentColor" /></span>
-            </button>
+              <span><strong>Ask about your plan</strong><small>A conversation about what comes next</small></span>
+              <span className="lincoln-sequence__play"><ArrowRight size={12} /></span>
+            </Link>
           </motion.div>
         </div>
 

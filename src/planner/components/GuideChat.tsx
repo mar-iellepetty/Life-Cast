@@ -1,22 +1,10 @@
 import { type FormEvent, useEffect, useRef, useState } from 'react';
-import AvatarDialog from '../../components/lifecast/AvatarDialog';
-import { SUGGESTIONS, greeting } from '../agent/guide';
+import { SUGGESTIONS } from '../agent/guide';
 import { usePlannerGuide } from '../agent/lincoln';
 import { images } from '../config/content';
 import type { Plan } from '../lib/model';
 
-export function PlannerLincolnButton({ plan, label = 'Meet Lincoln', className = 'btn secondary' }: { plan?: Plan | null; label?: string; className?: string }) {
-  const [open, setOpen] = useState(false);
-  const chat = usePlannerGuide(plan);
-  const latest = [...chat.messages].reverse().find(message => message.from === 'lincoln')?.text || greeting(plan);
-  useEffect(() => { setOpen(false); }, [plan?.id]);
-  return <>
-    <button className={className} onClick={() => setOpen(true)}>{label}</button>
-    <AvatarDialog key={plan?.id || 'intake'} open={open} onOpenChange={setOpen} message={latest} onAsk={chat.ask} />
-  </>;
-}
-
-/** Friend-style conversation, backed by the same Bedrock session as the 3D avatar. */
+/** Friend-style conversation backed by Amazon Bedrock. */
 export function GuideChat({ plan }: { plan: Plan }) {
   const chat = usePlannerGuide(plan);
   const [draft, setDraft] = useState('');
@@ -33,7 +21,6 @@ export function GuideChat({ plan }: { plan: Plan }) {
     <div className="guide-head">
       <img src={images.lincolnEmblem} alt="" className="guide-avatar" />
       <div><h2 className="guide-name">Lincoln</h2><p className="guide-role">Your planning guide · Amazon Bedrock</p></div>
-      <PlannerLincolnButton plan={plan} className="btn secondary guide-meet" />
     </div>
     <div className="guide-log" ref={logRef} role="log" aria-live="polite" aria-relevant="additions">
       {chat.messages.map(message => <div key={message.id} className={`gmsg ${message.from}`}><p>{message.text}</p></div>)}

@@ -1,12 +1,12 @@
-import { useEffect, useReducer, useState } from 'react';
+import { useEffect, useReducer, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { calculatePlan, createPlan } from './lib/calc';
 import { FinancialInputs, LifeEvent, Plan, defaultInputs, makeEvent } from './lib/model';
-import { PlanningState, emptyState, loadSavedPlans, reducer, savePlans } from './state/store';
+import { PlanningState, clearSavedPlans, emptyState, loadSavedPlans, reducer, savePlans } from './state/store';
 import { ExampleScenario } from './data/templates';
 import { STAGES, TopNav } from './components/TopNav';
 import { IntakeChat } from './components/IntakeChat';
-import { GuideChat, PlannerLincolnButton } from './components/GuideChat';
+import { GuideChat } from './components/GuideChat';
 import { NeedChart } from './components/NeedChart';
 import { TotalPanel } from './components/TotalPanel';
 import { LifeEventsPage } from './components/LifeEventsPage';
@@ -16,6 +16,8 @@ import { Review } from './components/Review';
 import { ComparePlansModal } from './components/ComparePlansModal';
 import { Report } from './components/Report';
 import { AssessmentProvider } from './state/AssessmentContext';
+import { clearPlannerGuides, forgetPlannerGuide } from './agent/lincoln';
+import { clearPlannerAssessmentCache } from './lib/backend';
 import './styles.css';
 
 // Open with ?demo, ?demo=events or ?demo=review to skip the introduction with sample answers.
@@ -40,6 +42,14 @@ export default function App() {
   const [saved, setSaved] = useState(() => loadSavedPlans());
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const [saveError, setSaveError] = useState('');
+  const [confirmDeleteSaved, setConfirmDeleteSaved] = useState(false);
+  const cleanupTimer = useRef<ReturnType<typeof setTimeout>>();
+
+  useEffect(() => {
+    clearTimeout(cleanupTimer.current);
+    // Defer one tick so StrictMode's effect rehearsal does not discard live state.
+    return () => { cleanupTimer.current = setTimeout(() => { clearPlannerGuides(); clearPlannerAssessmentCache(); }, 0); };
+  }, []);
 
   const active = state.plans.find((p) => p.id === state.activeId);
 
@@ -64,6 +74,7 @@ export default function App() {
   };
 
   const addPlan = (plan: Plan) => {
+    if (state.plans.length >= 30) return;
     dispatch({ type: 'addPlan', plan });
     setExample(null);
     if (stage === 0 || stage >= 3) go(1);
@@ -77,6 +88,7 @@ export default function App() {
   };
 
   const restart = () => {
+    clearPlannerGuides(); clearPlannerAssessmentCache();
     dispatch({ type: 'reset' });
     setAnswers(defaultInputs);
     go(0);
@@ -86,18 +98,22 @@ export default function App() {
     if (savePlans(state)) { setSavedAt(Date.now()); setSaved(loadSavedPlans()); setSaveError(''); }
     else setSaveError('Your browser could not save these plans. Allow local storage and try again.');
   };
+  const deleteSaved = () => {
+    if (clearSavedPlans()) { setSaved(null); setSavedAt(null); setSaveError(''); setConfirmDeleteSaved(false); }
+    else setSaveError('Your browser could not delete saved plans. Check local storage permissions and try again.');
+  };
 
   return (
     <AssessmentProvider plan={active}>
     <div className="planner-workspace">
-      <TopNav stage={stage} maxReached={active ? STAGES.length - 1 : 0} onNavigate={go} avatarAction={<PlannerLincolnButton plan={active} label="Meet Lincoln" className="btn secondary sm" />} onSave={active ? save : undefined} savedAt={savedAt} />
+      <TopNav stage={stage} maxReached={active ? STAGES.length - 1 : 0} onNavigate={go} onSave={active ? save : undefined} savedAt={savedAt} />
 
       {saveError && <div className="container save-error" role="alert">{saveError}</div>}
 
       <main className={`container page ${stage > 0 ? 'with-bar' : ''}`}>
         {stage === 0 && <>
           <header className="planner-intro"><p className="eyebrow">YOUR LIFE, YOUR PLAN</p><h1 className="page-title">Let’s start with what matters.</h1><p className="page-sub">A conversation with Lincoln turns your story into a plan you can explore.</p></header>
-          {saved && !active && <div className="resume-banner"><div><strong>Your saved plans are here.</strong><p>Saved on this browser {new Date(saved.savedAt).toLocaleDateString()}.</p></div><button className="btn secondary sm" onClick={resume}>Resume saved plans</button></div>}
+          {saved && !active && <div className="resume-banner"><div><strong>Your saved plans are here.</strong><p>Saved on this browser {new Date(saved.savedAt).toLocaleDateString()}.</p>{confirmDeleteSaved && <p role="status">Delete the saved financial details and plans from this browser?</p>}</div>{confirmDeleteSaved ? <><button className="btn secondary sm" onClick={deleteSaved}>Confirm delete saved plans</button><button className="btn ghost sm" onClick={() => setConfirmDeleteSaved(false)}>Cancel</button></> : <><button className="btn secondary sm" onClick={resume}>Resume saved plans</button><button className="btn ghost sm" onClick={() => setConfirmDeleteSaved(true)}>Delete saved plans</button></>}</div>}
           <IntakeChat initial={active?.financialInputs || answers} onComplete={complete} onExit={() => navigate('/')} />
         </>}
 
@@ -144,7 +160,7 @@ export default function App() {
           activeId={state.activeId}
           onSelect={(id) => dispatch({ type: 'selectPlan', id })}
           onRename={(id, name) => dispatch({ type: 'renamePlan', id, name })}
-          onDelete={(id) => dispatch({ type: 'deletePlan', id })}
+          onDelete={(id) => { if (state.plans.length > 1) { forgetPlannerGuide(id); dispatch({ type: 'deletePlan', id }); } }}
           onNewPlan={() => addPlan(createPlan('New Plan', { ...answers }))}
           onDuplicate={() => dispatch({ type: 'duplicatePlan', id: state.activeId })}
           onCustomEvent={() => {
@@ -160,6 +176,7 @@ export default function App() {
         <ExampleModal
           example={example}
           current={active}
+          canAddPlan={state.plans.length < 30}
           onApply={(plan) => {
             dispatch({ type: 'applyTemplate', plan });
             setExample(null);

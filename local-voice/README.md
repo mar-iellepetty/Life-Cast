@@ -1,10 +1,10 @@
 # Optional Windows microphone transcription
 
-LifeCast uses a local `whisper.cpp` executable for English microphone transcription on Windows. The executable, DLLs and model are intentionally excluded from Git. Typed Bedrock chat and Polly speech playback work without these files when AWS access is configured.
+LifeCast uses a local `whisper.cpp` executable for English microphone transcription on Windows. The executable, DLLs and model are intentionally excluded from Git. The current UI uses typed Bedrock chat and optional Polly intake speech; it does not record a microphone. These runtime files are only needed when using the retained local transcription API.
 
 1. Download a Windows x64 CPU build from the official [whisper.cpp releases](https://github.com/ggml-org/whisper.cpp/releases). Extract `whisper-cli.exe` and all DLLs distributed alongside it into `local-voice/bin/`.
 2. Download the unquantized `ggml-tiny.en.bin` model from the [whisper.cpp model repository](https://huggingface.co/ggerganov/whisper.cpp/tree/main) and place it directly inside `local-voice/`.
-3. Restart LifeCast with `npm start`, open **Meet Lincoln**, and permit microphone access. The backend's `/api/status` response reports `transcriptionReady: true` when the expected executable and model files exist on Windows. A recording verifies whether the runtime can execute successfully.
+3. Restart LifeCast with `npm start`. The backend's `/api/status` response reports `transcriptionReady: true` when the expected executable and model files exist on Windows. A recording verifies whether the runtime can execute successfully.
 
 Expected layout:
 

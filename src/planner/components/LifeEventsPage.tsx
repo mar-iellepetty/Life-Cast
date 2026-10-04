@@ -29,6 +29,7 @@ export function LifeEventsPage({ plan, focusKey, customKey, onAdd, onUpdate, onR
   const now = plan.financialInputs.age;
   const parsed = parseEvent(text, now);
   const events = [...plan.lifeEvents].sort((a, b) => a.age - b.age);
+  const atEventLimit = events.length >= 64;
   const clampAge = (a: number) => Math.min(calc.endAge, Math.max(calc.startAge, a));
 
   useEffect(() => {
@@ -39,6 +40,7 @@ export function LifeEventsPage({ plan, focusKey, customKey, onAdd, onUpdate, onR
   }, [customKey]);
 
   const addEvent = (ev: LifeEvent) => {
+    if (atEventLimit) return;
     const placed = { ...ev, age: clampAge(ev.age) };
     onAdd(placed);
     setOpen(placed.id);
@@ -59,6 +61,7 @@ export function LifeEventsPage({ plan, focusKey, customKey, onAdd, onUpdate, onR
       setOpen(drop.id);
       return;
     }
+    if (atEventLimit) return;
     if (drop.text === 'custom') {
       setShowCustom(true);
       return;
@@ -81,6 +84,7 @@ export function LifeEventsPage({ plan, focusKey, customKey, onAdd, onUpdate, onR
           <p className="eyebrow">{plan.name}</p>
           <h1 className="page-title">Life events</h1>
           <p className="page-sub">Explore changes in your life, past or planned. Each event updates your illustrative timeline projection.</p>
+          {atEventLimit && <p className="muted small" role="status">You can add up to 64 life events. Remove one before adding another.</p>}
         </header>
 
         <form className="panel add-event" onSubmit={submitText}>
@@ -89,7 +93,7 @@ export function LifeEventsPage({ plan, focusKey, customKey, onAdd, onUpdate, onR
           </label>
           <div className="add-event-row">
             <input id="event-text" ref={inputRef} className="add-event-input" value={text} onChange={(e) => setText(e.target.value)} placeholder="For example: I’m planning to buy a home in 2 years" autoComplete="off" />
-            <button className="btn primary lg" type="submit" disabled={!parsed}>
+            <button className="btn primary lg" type="submit" disabled={!parsed || atEventLimit}>
               Add event
             </button>
           </div>
@@ -106,7 +110,8 @@ export function LifeEventsPage({ plan, focusKey, customKey, onAdd, onUpdate, onR
                 key={type}
                 type="button"
                 className="drag-card"
-                draggable
+                draggable={!atEventLimit}
+                disabled={atEventLimit}
                 onDragStart={(e) => dragData(e, { kind: 'new', text: type })}
                 onClick={() => addEvent(makeEvent(type, type === 'retirement' ? plan.financialInputs.retirementAge : now + 2))}
                 title="Drag onto the chart, or click to add at a suggested age"
@@ -115,14 +120,14 @@ export function LifeEventsPage({ plan, focusKey, customKey, onAdd, onUpdate, onR
                 {EVENT_DEFS[type].label}
               </button>
             ))}
-            <button type="button" className={`drag-card custom ${showCustom ? 'on' : ''}`} onClick={() => setShowCustom(!showCustom)} aria-expanded={showCustom}>
+            <button type="button" disabled={atEventLimit} className={`drag-card custom ${showCustom ? 'on' : ''}`} onClick={() => setShowCustom(!showCustom)} aria-expanded={showCustom}>
               <EventIcon type="custom" size={16} />
               Create a custom event
             </button>
           </div>
         </form>
 
-        {showCustom && <CustomEventForm defaultAge={now + 2} minAge={calc.startAge} maxAge={calc.endAge} onAdd={(ev) => { addEvent(ev); setShowCustom(false); }} onCancel={() => setShowCustom(false)} />}
+        {showCustom && !atEventLimit && <CustomEventForm defaultAge={now + 2} minAge={calc.startAge} maxAge={calc.endAge} onAdd={(ev) => { addEvent(ev); setShowCustom(false); }} onCancel={() => setShowCustom(false)} />}
 
         <section className="panel chart-panel">
           <p className="projection-label">Illustrative timeline projection</p>
@@ -162,7 +167,8 @@ export function LifeEventsPage({ plan, focusKey, customKey, onAdd, onUpdate, onR
                     {e.isCustom && (
                       <div className="mf">
                         <span>Name</span>
-                        <input className="text-input" value={e.title} onChange={(x) => onUpdate(e.id, { title: x.target.value || 'Custom event' })} />
+                        <input className="text-input" maxLength={120} aria-label="Event name" value={e.title} onChange={(x) => onUpdate(e.id, { title: x.target.value.slice(0, 120) || 'Custom event' })} />
+                        {e.title.length >= 120 && <span className="muted small" role="status">Event names can contain up to 120 characters.</span>}
                       </div>
                     )}
                     <div className="mf">
@@ -191,7 +197,7 @@ export function LifeEventsPage({ plan, focusKey, customKey, onAdd, onUpdate, onR
             );
           })}
         </ul>
-        <button className="btn secondary block" onClick={() => setShowCustom(true)}>
+        <button className="btn secondary block" disabled={atEventLimit} onClick={() => setShowCustom(true)}>
           + Create a custom event
         </button>
       </aside>
@@ -228,7 +234,8 @@ function CustomEventForm({ defaultAge, minAge, maxAge, onAdd, onCancel }: { defa
       <div className="custom-grid">
         <label className="mf span-2">
           <span>Event name</span>
-          <input ref={ref} className="text-input" placeholder="For example: Caring for a parent" value={title} onChange={(e) => setTitle(e.target.value)} />
+          <input ref={ref} className="text-input" maxLength={120} placeholder="For example: Caring for a parent" value={title} onChange={(e) => setTitle(e.target.value.slice(0, 120))} />
+          {title.length >= 120 && <span className="muted small" role="status">Event names can contain up to 120 characters.</span>}
         </label>
         <div className="mf">
           <span>Age</span>
@@ -254,7 +261,8 @@ function CustomEventForm({ defaultAge, minAge, maxAge, onAdd, onCancel }: { defa
         </div>
         <label className="mf span-2">
           <span>Description (optional)</span>
-          <input className="text-input" placeholder="For example: in-home care for my mother" value={description} onChange={(e) => setDescription(e.target.value)} />
+          <input className="text-input" maxLength={2000} placeholder="For example: in-home care for my mother" value={description} onChange={(e) => setDescription(e.target.value.slice(0, 2000))} />
+          {description.length >= 2000 && <span className="muted small" role="status">Descriptions can contain up to 2,000 characters.</span>}
         </label>
       </div>
       <div className="custom-actions">

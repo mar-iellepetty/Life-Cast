@@ -38,7 +38,7 @@ export async function bedrockConfigured() {
 /**
  * Low-level Converse call. Returns the assistant's text.
  */
-async function converse({ system, user, messages, maxTokens = 600, temperature = 0.2 }) {
+async function converse({ system, user, messages, maxTokens = 600, temperature = 0.2, signal }) {
   const res = await client.send(
     new ConverseCommand({
       modelId: MODEL_ID,
@@ -46,7 +46,7 @@ async function converse({ system, user, messages, maxTokens = 600, temperature =
       messages:
         messages ?? [{ role: "user", content: [{ text: user }] }],
       inferenceConfig: { maxTokens, temperature },
-    }),
+    }), { abortSignal: signal },
   );
   return res.output?.message?.content?.[0]?.text?.trim() ?? "";
 }
@@ -89,12 +89,13 @@ Rules:
 - Never include fields other than those shown.
 `.trim();
 
-export async function extractHousehold(text) {
+export async function extractHousehold(text, { signal } = {}) {
   const raw = await converse({
     system: EXTRACT_SYSTEM,
     user: `Describe as JSON:\n"""${text}"""`,
     temperature: 0,
     maxTokens: 500,
+    signal,
   });
   const json = extractJson(raw);
   if (!json) throw new Error("Model did not return parseable JSON for intake.");
@@ -150,12 +151,13 @@ Rules:
 - Money is plain USD numbers.
 `.trim();
 
-export async function extractEvents(text) {
+export async function extractEvents(text, { signal } = {}) {
   const raw = await converse({
     system: EVENTS_SYSTEM,
     user: `The current year is ${new Date().getFullYear()}. Convert explicit calendar years into yearsFromNow relative to this year. Question: """${text}"""`,
     temperature: 0,
     maxTokens: 400,
+    signal,
   });
   const json = extractJson(raw);
   const events = Array.isArray(json?.events) ? json.events : [];
@@ -186,21 +188,23 @@ RULES:
 - Reduce anxiety; never be alarming. Never tell the user which product to buy.
 `.trim();
 
-export async function explainAssessment(assessment) {
+export async function explainAssessment(assessment, { signal } = {}) {
   return converse({
     system: EXPLAIN_SYSTEM,
     user: `Explain this needs assessment to the user:\n${JSON.stringify(assessment)}`,
     temperature: 0.3,
     maxTokens: 350,
+    signal,
   });
 }
 
-export async function explainDiff(diff) {
+export async function explainDiff(diff, { signal } = {}) {
   return converse({
     system: EXPLAIN_SYSTEM,
     user: `The user changed their future scenario. Explain WHY the modeled need changed, naming the biggest drivers from this diff:\n${JSON.stringify(diff)}`,
     temperature: 0.3,
     maxTokens: 350,
+    signal,
   });
 }
 
@@ -305,6 +309,7 @@ export async function chat(history, profile = null, context = "", options = {}) 
 
   // Tool-use loop: let the model call tools until it produces a final answer.
   for (let turn = 0; turn < 4; turn++) {
+    options.signal?.throwIfAborted();
     const res = await client.send(
       new ConverseCommand({
         modelId: MODEL_ID,
@@ -312,7 +317,7 @@ export async function chat(history, profile = null, context = "", options = {}) 
         messages: convo,
         toolConfig: options.assessment ? undefined : TOOL_CONFIG,
         inferenceConfig: { maxTokens: 800, temperature: 0.4 },
-      }),
+      }), { abortSignal: options.signal },
     );
 
     const out = res.output?.message;
@@ -324,7 +329,7 @@ export async function chat(history, profile = null, context = "", options = {}) 
       for (const block of out.content ?? []) {
         if (!block.toolUse) continue;
         const { name, input, toolUseId } = block.toolUse;
-        const result = await runTool(name, input ?? {}, profile, options.calculatorOptions);
+        const result = await runTool(name, input ?? {}, profile, options.calculatorOptions, { signal: options.signal });
         toolCalls.push({ name, input });
         if (name === "calculate_life_insurance_need" && result.assessment) {
           household = result.household;

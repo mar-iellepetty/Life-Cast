@@ -70,30 +70,46 @@ $result = [LincolnSpeech]::Run([string]$request.text, [string]$request.voice)
 $result | ConvertTo-Json -Depth 5 -Compress
 `;
 
-export function synthesizeSpeech(text, voice = 'Microsoft David Desktop') {
+function processOutput(command, args, { signal, spawnImpl = spawn, timeout, cwd, input }) {
+  signal?.throwIfAborted();
   return new Promise((resolve, reject) => {
-    if (process.platform !== 'win32') return reject(new HttpError(503, 'Local speech synthesis requires Windows. Amazon Polly remains the primary voice.', 'speech_unavailable'));
-    const args = ['-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', Buffer.from(SPEECH_SCRIPT, 'utf16le').toString('base64')];
-    const child = spawn('powershell.exe', args, { windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
-    let output = ''; let size = 0; let failed = false;
-    const timer = setTimeout(() => { failed = true; child.kill(); reject(new HttpError(504, 'Local speech synthesis timed out. Try a shorter message.', 'speech_timeout')); }, 60000);
-    child.stdout.on('data', (data) => { size += data.length; if (size > 16 * 1024 * 1024) { failed = true; child.kill(); clearTimeout(timer); reject(new HttpError(413, 'The generated speech is too long.')); } else output += data.toString('utf8'); });
-    // Do not echo arbitrary PowerShell diagnostics containing user input.
+    const child = spawnImpl(command, args, { windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'], cwd });
+    let output = ''; let size = 0; let failure;
+    const stop = (reason) => { if (!failure) { failure = reason; child.kill(); } };
+    const aborted = () => stop(signal.reason);
+    const timer = setTimeout(() => stop(new HttpError(504, 'Local speech processing timed out. Please try a shorter message.')), timeout);
+    const cleanup = () => { clearTimeout(timer); signal?.removeEventListener('abort', aborted); };
+    signal?.addEventListener('abort', aborted, { once: true });
+    if (signal?.aborted) aborted();
+    child.stdout.on('data', (data) => {
+      size += data.length;
+      if (size > 16 * 1024 * 1024) stop(new HttpError(413, 'The generated speech is too long.'));
+      else if (!failure) output += data.toString('utf8');
+    });
+    // Discard process diagnostics; they can contain user input or file paths.
     child.stderr.on('data', () => {});
-    child.on('error', () => { clearTimeout(timer); if (!failed) reject(new HttpError(503, 'Windows speech could not start. Ensure Windows PowerShell and an English speech voice are available.', 'speech_unavailable')); });
+    child.on('error', () => { failure ??= new HttpError(503, 'The local speech process could not start.'); });
     child.on('close', (code) => {
-      clearTimeout(timer); if (failed) return;
-      if (code !== 0) return reject(new HttpError(503, 'Windows speech could not generate audio. Check that a Windows speech voice is installed.', 'speech_failed'));
-      try {
-        const result = JSON.parse(output.replace(/^\uFEFF/, '').trim());
-        if (typeof result.audioBase64 !== 'string' || !Array.isArray(result.visemes)) throw new Error();
-        result.visemes.sort((a, b) => a.time - b.time);
-        resolve(result);
-      } catch { reject(new HttpError(503, 'Windows speech returned an unreadable result.', 'speech_failed')); }
+      cleanup();
+      if (failure) return reject(failure);
+      if (code !== 0) return reject(new HttpError(503, 'The local speech process could not complete this request.'));
+      resolve(output);
     });
     child.stdin.on('error', () => {});
-    child.stdin.end(JSON.stringify({ text, voice }));
+    child.stdin.end(input);
   });
+}
+
+export async function synthesizeSpeech(text, voice = 'Microsoft David Desktop', options = {}) {
+  if (process.platform !== 'win32') throw new HttpError(503, 'Local speech synthesis requires Windows. Amazon Polly remains the primary voice.', 'speech_unavailable');
+  const args = ['-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', Buffer.from(SPEECH_SCRIPT, 'utf16le').toString('base64')];
+  const output = await processOutput('powershell.exe', args, { ...options, timeout: 60000, input: JSON.stringify({ text, voice }) });
+  try {
+    const result = JSON.parse(output.replace(/^\uFEFF/, '').trim());
+    if (typeof result.audioBase64 !== 'string' || !Array.isArray(result.visemes)) throw new Error();
+    result.visemes.sort((a, b) => a.time - b.time);
+    return result;
+  } catch { throw new HttpError(503, 'Windows speech returned an unreadable result.', 'speech_failed'); }
 }
 
 export function validateWav(buffer) {
@@ -117,7 +133,8 @@ export function validateWav(buffer) {
   return { seconds, rms };
 }
 
-export async function transcribeWav(buffer, paths = localVoicePaths) {
+export async function transcribeWav(buffer, paths = localVoicePaths, options = {}) {
+  options.signal?.throwIfAborted();
   validateWav(buffer);
   if (!existsSync(paths.whisper) || !existsSync(paths.whisperModel)) throw new HttpError(503, 'The local speech recognition model is not installed yet.', 'transcription_unavailable');
   await mkdir(paths.recordings, { recursive: true });
@@ -125,13 +142,8 @@ export async function transcribeWav(buffer, paths = localVoicePaths) {
   const wavPath = path.join(directory, 'recording.wav'); const textBase = path.join(directory, 'transcript');
   try {
     await writeFile(wavPath, buffer);
-    await new Promise((resolve, reject) => {
-      const child = spawn(paths.whisper, ['-m', paths.whisperModel, '-f', wavPath, '-otxt', '-of', textBase, '-t', '4', '-l', 'en', '-nt', '-np', '-bs', '1', '-bo', '1', '-ng'], { windowsHide: true, stdio: ['ignore', 'ignore', 'ignore'], cwd: path.dirname(paths.whisper) });
-      let timedOut = false;
-      const timer = setTimeout(() => { timedOut = true; child.kill(); reject(new HttpError(504, 'Local transcription timed out. Please try a shorter recording.')); }, 45000);
-      child.on('error', () => { clearTimeout(timer); reject(new HttpError(503, 'The local speech recognizer could not start.')); });
-      child.on('close', (code) => { clearTimeout(timer); if (timedOut) return; code === 0 ? resolve() : reject(new HttpError(503, 'The local speech recognizer could not process this recording.')); });
-    });
+    await processOutput(paths.whisper, ['-m', paths.whisperModel, '-f', wavPath, '-otxt', '-of', textBase, '-t', '4', '-l', 'en', '-nt', '-np', '-bs', '1', '-bo', '1', '-ng'], { ...options, timeout: 45000, cwd: path.dirname(paths.whisper) });
+    options.signal?.throwIfAborted();
     const text = (await readFile(textBase + '.txt', 'utf8')).replace(/\[(?:BLANK_AUDIO|SILENCE|MUSIC)\]/gi, '').trim();
     if (!text) throw new HttpError(422, 'No speech was recognized. Please try again.', 'no_speech');
     return { text };

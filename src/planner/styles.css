@@ -637,7 +637,7 @@
 .planner-workspace .review-head .page-title { font-size: 2.4rem; margin-top: 6px; }
 .planner-workspace .review-head .page-sub { max-width: 720px; }
 .planner-workspace .review-head .page-sub strong { color: var(--maroon); }
-.planner-workspace .review-actions { display: flex; gap: 10px; align-items: center; }
+.planner-workspace .review-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .planner-workspace .tvp { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
 .planner-workspace .tvp-card { padding: 32px; display: flex; flex-direction: column; gap: 14px; }
 .planner-workspace .tvp-card.lean { border-color: var(--maroon); box-shadow: inset 0 5px 0 var(--maroon); }

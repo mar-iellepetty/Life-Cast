@@ -6,7 +6,7 @@ import tsParser from '@typescript-eslint/parser';
 import ts from '@typescript-eslint/eslint-plugin';
 
 export default [
-  { ignores: ['node_modules/**', 'dist/**', 'public/**', 'local-voice/**', 'server/engine-reference/**'] },
+  { ignores: ['node_modules/**', '.amplify-hosting/**', '.deployment/**', 'dist/**', 'public/**', 'local-voice/**', 'server/engine-reference/**'] },
   { ...js.configs.recommended, files: ['src/**/*.{js,jsx}', 'server/*.mjs', 'scripts/*.mjs', 'tests/*.mjs'] },
   { files: ['src/**/*.{js,jsx}'],
     languageOptions: { globals: globals.browser, parserOptions: { ecmaFeatures: { jsx: true } } },

@@ -52,6 +52,7 @@ export function reducer(s: PlanningState, a: Action): PlanningState {
       return updateActive(s, (p) => {
         const single = a.event.type !== 'custom' && EVENT_DEFS[a.event.type].single;
         const existing = single ? p.lifeEvents.find((e) => e.type === a.event.type) : undefined;
+        if (!existing && p.lifeEvents.length >= 64) return p;
         return {
           ...p,
           lifeEvents: existing ? p.lifeEvents.map((e) => (e.id === existing.id ? { ...a.event, id: existing.id } : e)) : [...p.lifeEvents, a.event],
@@ -68,6 +69,7 @@ export function reducer(s: PlanningState, a: Action): PlanningState {
     case 'restoreTerms':
       return updateActive(s, (p) => ({ ...p, timeline: { ...p.timeline, dismissedTermStarts: [] } }));
     case 'addPlan': {
+      if (s.plans.length >= 30) return s;
       const name = uniqueName(s.plans.map((p) => p.name), a.plan.name);
       return { plans: [...s.plans, { ...a.plan, name }], activeId: a.plan.id };
     }
@@ -81,13 +83,14 @@ export function reducer(s: PlanningState, a: Action): PlanningState {
         templateId: a.plan.templateId,
       }));
     case 'duplicatePlan': {
+      if (s.plans.length >= 30) return s;
       const src = s.plans.find((p) => p.id === a.id);
       if (!src) return s;
       const copy = duplicatePlan(src, uniqueName(s.plans.map((p) => p.name), `${src.name} copy`));
       return { plans: [...s.plans, copy], activeId: copy.id };
     }
     case 'renamePlan':
-      return { ...s, plans: s.plans.map((p) => (p.id === a.id ? { ...p, name: a.name } : p)) };
+      return { ...s, plans: s.plans.map((p) => (p.id === a.id && a.name.trim() ? { ...p, name: a.name.trim().slice(0, 100) } : p)) };
     case 'deletePlan': {
       if (s.plans.length <= 1) return s;
       const plans = s.plans.filter((p) => p.id !== a.id);

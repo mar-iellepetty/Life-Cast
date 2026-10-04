@@ -1,4 +1,3 @@
-import { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 
 export const STAGES = ['Introduction', 'Financial Planning', 'Life Events', 'Review & Plan', 'Report'];
@@ -7,12 +6,11 @@ interface Props {
   stage: number;
   maxReached: number;
   onNavigate: (stage: number) => void;
-  avatarAction: ReactNode;
   onSave?: () => void;
   savedAt?: number | null;
 }
 
-export function TopNav({ stage, maxReached, onNavigate, avatarAction, onSave, savedAt }: Props) {
+export function TopNav({ stage, maxReached, onNavigate, onSave, savedAt }: Props) {
   return (
     <header className="topnav">
       <nav className="stepper" aria-label="Planning progress">
@@ -50,7 +48,7 @@ export function TopNav({ stage, maxReached, onNavigate, avatarAction, onSave, sa
             </strong>
             {stage < STAGES.length - 1 && <span> · Next: {STAGES[stage + 1]}</span>}
           </div>
-          <div className="planner-header-actions"><Link to="/" className="planner-home">Home</Link>{onSave && <button className="btn ghost sm" onClick={onSave}>{savedAt ? 'Saved' : 'Save plans'}</button>}{avatarAction}</div>
+          <div className="planner-header-actions"><Link to="/" className="planner-home">Home</Link>{onSave && <button className="btn ghost sm" onClick={onSave}>{savedAt ? 'Saved' : 'Save plans'}</button>}</div>
         </div>
       </div>
     </header>

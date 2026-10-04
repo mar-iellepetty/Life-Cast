@@ -8,6 +8,7 @@ import { Modal } from './ui';
 interface Props {
   example: ExampleScenario;
   current: Plan;
+  canAddPlan?: boolean;
   onApply: (plan: Plan) => void;
   onAddAsNew: (plan: Plan) => void;
   onClose: () => void;
@@ -18,7 +19,7 @@ export const needSeries = (plan: Plan, fromAge?: number) =>
     .projection.filter((p) => p.age >= (fromAge ?? plan.financialInputs.age))
     .map((p) => ({ age: p.age, value: p.estimatedCoverageNeed }));
 
-export function ExampleModal({ example, current, onApply, onAddAsNew, onClose }: Props) {
+export function ExampleModal({ example, current, canAddPlan = true, onApply, onAddAsNew, onClose }: Props) {
   const examplePlan = planFromExample(example);
   const a = calculatePlan(current);
   const b = calculatePlan(examplePlan);
@@ -47,7 +48,7 @@ export function ExampleModal({ example, current, onApply, onAddAsNew, onClose }:
           <button className="btn ghost" onClick={onClose}>
             Close
           </button>
-          <button className="btn secondary" onClick={() => onAddAsNew(examplePlan)}>
+          <button className="btn secondary" disabled={!canAddPlan} onClick={() => onAddAsNew(examplePlan)}>
             Add as a new plan
           </button>
           <button className="btn primary" onClick={() => onApply(examplePlan)}>
@@ -59,6 +60,7 @@ export function ExampleModal({ example, current, onApply, onAddAsNew, onClose }:
       <p className="modal-lede">
         {example.summary}. <span className="tag">Illustrative scenario</span>
       </p>
+      {!canAddPlan && <p className="muted small" role="status">You can keep up to 30 plans. Delete one to add this example, or apply it to your current plan.</p>}
       <div className="example-grid">
         <table className="data-table">
           <thead>

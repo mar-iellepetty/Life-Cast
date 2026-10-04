@@ -1,4 +1,15 @@
-node_modules
-dist
+node_modules/
+dist/
+.env*
+!.env.example
+work/
+cache/
+.cache/
+logs/
 *.log
 *.tsbuildinfo
+coverage/
+local-voice/bin/
+local-voice/ggml*.bin
+.DS_Store
+Thumbs.db

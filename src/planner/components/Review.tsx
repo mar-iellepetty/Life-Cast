@@ -69,12 +69,12 @@ export function Review({ plan, savedAt, onAdjust, onSave, onCompare, onAddPlan }
   const standing = ready
     ? [
         { key: 'avg', label: 'Illustrative national benchmark', sub: 'Your input family, selected national medians, and an average new policy', coverage: TYPICAL_POLICY.amount, need: insuranceNeed(avgAssessment!, TYPICAL_POLICY.amount) },
-        { key: 'you', label: 'You today', sub: i.existingCoverage ? 'Your existing coverage' : 'You have no life insurance yet', coverage: i.existingCoverage, need: insuranceNeed(assessment!, i.existingCoverage) },
-        ...(hasNeed ? [{ key: 'plan', label: `Your plan with the ${s.years}-year term`, sub: `Existing coverage plus the suggested ${money(s.amount)}`, coverage: i.existingCoverage + s.amount, need: insuranceNeed(assessment!, i.existingCoverage) }] : []),
+        hasNeed
+          ? { key: 'plan', label: `Your plan with the ${s.years}-year term`, sub: `Existing coverage plus the suggested ${money(s.amount)}`, coverage: i.existingCoverage + s.amount, need: insuranceNeed(assessment!, i.existingCoverage) }
+          : { key: 'plan', label: 'Your plan', sub: 'Your existing coverage and resources', coverage: i.existingCoverage, need: insuranceNeed(assessment!, i.existingCoverage) },
       ].map((r) => ({ ...r, pct: r.need > 0 ? Math.min(100, Math.round((r.coverage / r.need) * 100)) : 100, gap: Math.max(0, r.need - r.coverage) }))
     : [];
-  const [avgRow, youRow] = standing;
-  const verdict = !ready ? '' : youRow.pct > avgRow.pct + 2 ? 'ahead of' : youRow.pct < avgRow.pct - 2 ? 'behind' : 'about level with';
+  const [avgRow, planRow] = standing;
   const kids = i.children > 0;
 
   const rows: { label: string; yours: number; theirs: number; note?: string }[] = [
@@ -94,7 +94,7 @@ export function Review({ plan, savedAt, onAdjust, onSave, onCompare, onAddPlan }
         <div>
           <p className="eyebrow">Review &amp; Plan · {plan.name}</p>
           <h1 className="page-title">What coverage fits your plan</h1>
-          <p className="page-sub">A suggested starting point, the trade-offs of term and permanent coverage, and how your finances compare nationally.</p>
+          <p className="page-sub">How term and permanent coverage differ, a suggested starting point for your plan, and how it compares nationally.</p>
         </div>
         <div className="review-actions">
           <button className="btn primary lg" onClick={onAdjust}>Adjust Plan</button>
@@ -104,7 +104,37 @@ export function Review({ plan, savedAt, onAdjust, onSave, onCompare, onAddPlan }
 
       <AssessmentSummary />
 
-      {/* 1. The suggestion */}
+      {/* 1. First, what the two kinds of coverage are */}
+      <section className="panel explainer" aria-labelledby="explainer-title">
+        <p className="section-kicker">Before we suggest anything</p>
+        <h2 id="explainer-title" className="section-heading">Term and permanent life insurance, in plain words</h2>
+        <p className="explainer-lede">Both pay your family a lump sum if you die while the policy is active. The difference is <strong>how long the coverage lasts</strong> and <strong>what you pay for it</strong>.</p>
+        <div className="explainer-grid">
+          <div className="explainer-card">
+            <h3>Term life insurance</h3>
+            <p className="explainer-analogy">Like renting: protection for a set number of years.</p>
+            <ul>
+              <li>Covers you for a fixed period, often 10, 20 or 30 years.</li>
+              <li>If you die during the term, your family receives the payout. When the term ends, the coverage ends.</li>
+              <li>Usually the lowest cost for a large amount of coverage.</li>
+              <li>No savings or cash value builds up.</li>
+            </ul>
+          </div>
+          <div className="explainer-card">
+            <h3>Permanent life insurance</h3>
+            <p className="explainer-analogy">Like owning: protection for your whole life.</p>
+            <ul>
+              <li>Lasts for life as long as you keep paying premiums.</li>
+              <li>Your family receives the payout whenever you die.</li>
+              <li>Costs considerably more for the same amount.</li>
+              <li>Many policies build cash value you can borrow against.</li>
+            </ul>
+          </div>
+        </div>
+        <p className="explainer-key"><strong>The key question:</strong> how long would your family need the money? If the need ends, for example when your children are grown and the mortgage is paid, term usually fits. If the need lasts for life, permanent is worth considering. Your plan's answer is below.</p>
+      </section>
+
+      {/* 2. The suggestion */}
       <section className="panel term-pick">
         <p className="section-kicker">Suggested starting point</p>
         <h2 className="term-pick-title">
@@ -123,7 +153,7 @@ export function Review({ plan, savedAt, onAdjust, onSave, onCompare, onAddPlan }
         <p className="muted small">This is a planning suggestion, not a quote or a product recommendation. A licensed professional can confirm the right amount and term.</p>
       </section>
 
-      {/* 2. Pros and cons */}
+      {/* 3. Pros and cons */}
       <section className="pros-cons">
         <article className={`panel pc-card ${hasNeed && !s.lasting ? 'lean' : ''}`}>
           <p className="tvp-kicker">Choosing term life insurance</p>
@@ -161,7 +191,7 @@ export function Review({ plan, savedAt, onAdjust, onSave, onCompare, onAddPlan }
         </article>
       </section>
 
-      {/* 3. Compare with national averages */}
+      {/* 4. Compare with national averages */}
       <section className="panel national">
         <div className="national-head">
           <div>
@@ -175,7 +205,9 @@ export function Review({ plan, savedAt, onAdjust, onSave, onCompare, onAddPlan }
           <h3 className="sub-heading">Where you stand on life insurance</h3>
           {!ready && <p className="standing-summary" role="status">{avg.error && avg.key === nationalKey ? `The comparison needs CalcXML: ${avg.error}` : 'Calculating both households with CalcXML…'}</p>}
           {ready && <p className="standing-summary">
-            Today your coverage is <strong>{verdict}</strong> this illustrative benchmark: <strong>{youRow.pct}%</strong> of your modeled need is covered, compared with <strong>{avgRow.pct}%</strong> for the benchmark.
+            {hasNeed
+              ? <>With the suggested {s.years}-year term, your plan would cover <strong>{planRow.pct}%</strong> of your modeled need. The benchmark household, holding an average new policy of {money(TYPICAL_POLICY.amount)}, covers <strong>{avgRow.pct}%</strong> of theirs.</>
+              : <>Your resources already cover your modeled need. The benchmark household, holding an average new policy of {money(TYPICAL_POLICY.amount)}, covers <strong>{avgRow.pct}%</strong> of theirs.</>}
             {' '}Separately, {OWNERSHIP.percent}% of adults report owning life insurance; that survey does not measure how much of their need is covered.
           </p>}
           {standing.map((r) => (

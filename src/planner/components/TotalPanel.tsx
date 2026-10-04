@@ -1,23 +1,19 @@
 import { useState } from 'react';
 import type { FinancialInputs, Plan } from '../lib/model';
-import { money } from '../lib/format';
 import { useAssessment } from '../state/AssessmentContext';
 import { AssessmentSummary } from './AssessmentSummary';
+import { SimpleMath } from './SimpleMath';
 import { Chevron, MoneyField, NumberField } from './ui';
 import './report.css';
 
 export function TotalPanel({ plan, onInputs }: { plan: Plan; onInputs: (patch: Partial<FinancialInputs>) => void }) {
   const [showCalc, setShowCalc] = useState(false), [showInputs, setShowInputs] = useState(false);
-  const { assessment, loading, error, assumptions } = useAssessment();
+  const { assessment, household, calculatorInput, loading, error, assumptions } = useAssessment();
   const i = plan.financialInputs;
   return <aside className="panel total-panel" aria-label="Current coverage assessment">
     <AssessmentSummary compact />
     <button className="toggle" onClick={() => setShowCalc(!showCalc)} aria-expanded={showCalc}><Chevron open={showCalc} />{showCalc ? 'Hide calculations' : 'View calculations'}</button>
-    {showCalc && assessment && !loading && !error && <div className="provider-lines fade">
-      {[...assessment.needs, ...assessment.resources].map(row => <div key={row.id}><header><strong>{row.label}</strong><span>{assessment.resources.includes(row) ? '−' : ''}{money(row.amount)}</span></header><p>{row.explanation}</p></div>)}
-      <p className="calculation-origin">CalcXML Ins01 · current household estimate. The chart beside this panel is a separate illustrative timeline; its assumptions and method differ.</p>
-      {assumptions.map((note, index) => <p key={index}>{note}</p>)}
-    </div>}
+    {showCalc && assessment && !loading && !error && <SimpleMath result={{ assessment, household, calculatorInput }} assumptions={assumptions} />}
     <button className="toggle" onClick={() => setShowInputs(!showInputs)} aria-expanded={showInputs}><Chevron open={showInputs} />{showInputs ? 'Hide your information' : 'Edit your information'}</button>
     {showInputs && <div className="mini-fields fade">
       <div className="mf"><span>Your age</span><NumberField stepper label="Your age" value={i.age} min={18} max={90} onChange={age => onInputs({ age })} /></div>

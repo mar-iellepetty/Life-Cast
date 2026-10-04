@@ -7,6 +7,7 @@ import { ExampleScenario } from './data/templates';
 import { STAGES, TopNav } from './components/TopNav';
 import { IntakeChat } from './components/IntakeChat';
 import { GuideChat } from './components/GuideChat';
+import { EVENT_SUGGESTIONS, REVIEW_SUGGESTIONS } from './agent/guide';
 import { NeedChart } from './components/NeedChart';
 import { TotalPanel } from './components/TotalPanel';
 import { PlanSliders, type SliderDraft } from './components/PlanSliders';
@@ -123,6 +124,7 @@ export default function App() {
 
         {stage === 2 && active && (
           <>
+            <div className="page-guide"><GuideChat plan={active} suggestions={EVENT_SUGGESTIONS} placeholder="Ask Lincoln about a life event" /></div>
             <LifeEventsPage
               key={active.id}
               plan={active}
@@ -138,6 +140,7 @@ export default function App() {
 
         {stage === 3 && active && (
           <>
+            <div className="page-guide"><GuideChat plan={active} suggestions={REVIEW_SUGGESTIONS} placeholder="Ask Lincoln about your coverage options" /></div>
             <Review
               plan={active}
               savedAt={savedAt}

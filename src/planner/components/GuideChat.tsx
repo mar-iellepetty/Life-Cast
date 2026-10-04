@@ -5,7 +5,7 @@ import { images } from '../config/content';
 import type { Plan } from '../lib/model';
 
 /** Friend-style conversation backed by Amazon Bedrock. */
-export function GuideChat({ plan }: { plan: Plan }) {
+export function GuideChat({ plan, suggestions = SUGGESTIONS, placeholder = 'Ask Lincoln about your plan' }: { plan: Plan; suggestions?: string[]; placeholder?: string }) {
   const chat = usePlannerGuide(plan);
   const [draft, setDraft] = useState('');
   const logRef = useRef<HTMLDivElement>(null);
@@ -28,9 +28,9 @@ export function GuideChat({ plan }: { plan: Plan }) {
     </div>
     {chat.error && <div className="guide-error" role="alert"><p>{chat.error}</p><button className="btn secondary" disabled={chat.busy} onClick={() => void ask(chat.lastQuestion)}>Try again</button></div>}
     <div className="guide-foot">
-      <div className="guide-suggest">{SUGGESTIONS.map(suggestion => <button key={suggestion} className="reply-chip sm" disabled={chat.busy} onClick={() => void ask(suggestion)}>{suggestion}</button>)}</div>
+      <div className="guide-suggest">{suggestions.map(suggestion => <button key={suggestion} className="reply-chip sm" disabled={chat.busy} onClick={() => void ask(suggestion)}>{suggestion}</button>)}</div>
       <form className="guide-input" onSubmit={submit}>
-        <input value={draft} onChange={event => setDraft(event.target.value)} placeholder="Ask Lincoln about your plan" aria-label="Ask Lincoln a question" maxLength={4000} />
+        <input value={draft} onChange={event => setDraft(event.target.value)} placeholder={placeholder} aria-label="Ask Lincoln a question" maxLength={4000} />
         <button className="btn primary" type="submit" disabled={!draft.trim() || chat.busy}>{chat.busy ? 'Thinking…' : 'Ask'}</button>
       </form>
     </div>
